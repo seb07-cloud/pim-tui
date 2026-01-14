@@ -156,11 +156,7 @@ func (c *Client) GetGroups(ctx context.Context) ([]Group, error) {
 	for i := range eligible {
 		if expiry, ok := active[eligible[i].ID]; ok {
 			eligible[i].ExpiresAt = expiry
-			if time.Until(*expiry) < 30*time.Minute {
-				eligible[i].Status = StatusExpiringSoon
-			} else {
-				eligible[i].Status = StatusActive
-			}
+			eligible[i].Status = StatusFromExpiry(expiry)
 		}
 	}
 

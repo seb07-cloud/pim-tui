@@ -80,6 +80,25 @@ var (
 			BorderForeground(colorHighlight).
 			Padding(1, 2).
 			Align(lipgloss.Center)
+
+	// Detail panel styles
+	detailTitleStyle = lipgloss.NewStyle().Bold(true).Foreground(colorHighlight)
+	detailLabelStyle = lipgloss.NewStyle().Foreground(colorPending).Bold(true)
+	detailValueStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#ffffff"))
+	detailDimStyle   = lipgloss.NewStyle().Foreground(colorDim)
+
+	// Cursor/selection style
+	cursorStyle = lipgloss.NewStyle().
+			Background(lipgloss.Color("#333333")).
+			Foreground(colorHighlight).
+			Bold(true)
+
+	// Common inline styles
+	dimStyle         = lipgloss.NewStyle().Foreground(colorDim)
+	activeStyle      = lipgloss.NewStyle().Foreground(colorActive)
+	activeBoldStyle  = lipgloss.NewStyle().Foreground(colorActive).Bold(true)
+	errorBoldStyle   = lipgloss.NewStyle().Foreground(colorError).Bold(true)
+	highlightBoldStyle = lipgloss.NewStyle().Foreground(colorHighlight).Bold(true)
 )
 
 func statusIcon(status ActivationStatus) string {
@@ -181,4 +200,8 @@ func rebuildStyles() {
 		BorderForeground(colorHighlight).
 		Padding(1, 2).
 		Align(lipgloss.Center)
+
+	detailTitleStyle = lipgloss.NewStyle().Bold(true).Foreground(colorHighlight)
+	detailLabelStyle = lipgloss.NewStyle().Foreground(colorPending).Bold(true)
+	detailDimStyle = lipgloss.NewStyle().Foreground(colorDim)
 }

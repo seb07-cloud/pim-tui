@@ -751,46 +751,28 @@ func formatDurationHours(d time.Duration) string {
 	return fmt.Sprintf("%dh%dm", h, m)
 }
 
+func clampCursor(cursor, delta, length int) int {
+	if length == 0 {
+		return 0
+	}
+	cursor += delta
+	if cursor < 0 {
+		return 0
+	}
+	if cursor >= length {
+		return length - 1
+	}
+	return cursor
+}
+
 func (m *Model) moveCursor(delta int) {
 	switch {
 	case m.viewMode == ViewLighthouse:
-		if len(m.lighthouse) == 0 {
-			m.lightCursor = 0
-			return
-		}
-		m.lightCursor += delta
-		if m.lightCursor < 0 {
-			m.lightCursor = 0
-		}
-		if m.lightCursor >= len(m.lighthouse) {
-			m.lightCursor = len(m.lighthouse) - 1
-		}
-
+		m.lightCursor = clampCursor(m.lightCursor, delta, len(m.lighthouse))
 	case m.activeTab == TabRoles:
-		if len(m.roles) == 0 {
-			m.rolesCursor = 0
-			return
-		}
-		m.rolesCursor += delta
-		if m.rolesCursor < 0 {
-			m.rolesCursor = 0
-		}
-		if m.rolesCursor >= len(m.roles) {
-			m.rolesCursor = len(m.roles) - 1
-		}
-
+		m.rolesCursor = clampCursor(m.rolesCursor, delta, len(m.roles))
 	case m.activeTab == TabGroups:
-		if len(m.groups) == 0 {
-			m.groupsCursor = 0
-			return
-		}
-		m.groupsCursor += delta
-		if m.groupsCursor < 0 {
-			m.groupsCursor = 0
-		}
-		if m.groupsCursor >= len(m.groups) {
-			m.groupsCursor = len(m.groups) - 1
-		}
+		m.groupsCursor = clampCursor(m.groupsCursor, delta, len(m.groups))
 	}
 }
 
@@ -938,17 +920,16 @@ func (m *Model) startDeactivation() (tea.Model, tea.Cmd) {
 }
 
 func (m *Model) setDurationByIndex(idx int) {
-	if idx < len(m.config.DurationPresets) {
-		m.durationIndex = idx
-		m.duration = time.Duration(m.config.DurationPresets[idx]) * time.Hour
-		m.log(LogInfo, "Duration set to %d hours", m.config.DurationPresets[idx])
+	if idx >= len(m.config.DurationPresets) {
+		return
 	}
+	m.durationIndex = idx
+	m.duration = time.Duration(m.config.DurationPresets[idx]) * time.Hour
+	m.log(LogInfo, "Duration set to %d hours", m.config.DurationPresets[idx])
 }
 
 func (m *Model) cycleDuration() {
-	m.durationIndex = (m.durationIndex + 1) % len(m.config.DurationPresets)
-	m.duration = time.Duration(m.config.DurationPresets[m.durationIndex]) * time.Hour
-	m.log(LogInfo, "Duration set to %d hours", m.config.DurationPresets[m.durationIndex])
+	m.setDurationByIndex((m.durationIndex + 1) % len(m.config.DurationPresets))
 }
 
 func (m *Model) cycleLogLevel() {

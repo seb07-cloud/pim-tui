@@ -24,6 +24,17 @@ func (s ActivationStatus) String() string {
 	}
 }
 
+// StatusFromExpiry returns the activation status based on expiry time
+func StatusFromExpiry(expiry *time.Time) ActivationStatus {
+	if expiry == nil {
+		return StatusInactive
+	}
+	if time.Until(*expiry) < 30*time.Minute {
+		return StatusExpiringSoon
+	}
+	return StatusActive
+}
+
 type Tenant struct {
 	ID          string
 	DisplayName string
