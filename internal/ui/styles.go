@@ -94,11 +94,26 @@ var (
 			Bold(true)
 
 	// Common inline styles
-	dimStyle         = lipgloss.NewStyle().Foreground(colorDim)
-	activeStyle      = lipgloss.NewStyle().Foreground(colorActive)
-	activeBoldStyle  = lipgloss.NewStyle().Foreground(colorActive).Bold(true)
-	errorBoldStyle   = lipgloss.NewStyle().Foreground(colorError).Bold(true)
+	dimStyle           = lipgloss.NewStyle().Foreground(colorDim)
+	activeStyle        = lipgloss.NewStyle().Foreground(colorActive)
+	activeBoldStyle    = lipgloss.NewStyle().Foreground(colorActive).Bold(true)
+	errorBoldStyle     = lipgloss.NewStyle().Foreground(colorError).Bold(true)
 	highlightBoldStyle = lipgloss.NewStyle().Foreground(colorHighlight).Bold(true)
+
+	// Tab styles
+	activeTabStyle = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(colorHighlight).
+			Background(lipgloss.Color("#333333")).
+			Padding(0, 2).
+			Border(lipgloss.RoundedBorder(), true, true, false, true).
+			BorderForeground(colorHighlight)
+
+	inactiveTabStyle = lipgloss.NewStyle().
+				Foreground(colorDim).
+				Padding(0, 2).
+				Border(lipgloss.RoundedBorder(), true, true, false, true).
+				BorderForeground(colorBorder)
 )
 
 func statusIcon(status ActivationStatus) string {

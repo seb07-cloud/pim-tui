@@ -727,7 +727,7 @@ func (m *Model) exportHistory() {
 			entry.Time.Format("2006-01-02 15:04:05"),
 			entry.Type,
 			entry.Name,
-			formatDurationHours(entry.Duration),
+			formatDuration(entry.Duration),
 			entry.Justification,
 			entry.Success,
 		)
@@ -740,15 +740,6 @@ func (m *Model) exportHistory() {
 	} else {
 		m.log(LogInfo, "Exported %d activation history entries to clipboard", len(m.activationHistory))
 	}
-}
-
-func formatDurationHours(d time.Duration) string {
-	h := int(d.Hours())
-	m := int(d.Minutes()) % 60
-	if m == 0 {
-		return fmt.Sprintf("%dh", h)
-	}
-	return fmt.Sprintf("%dh%dm", h, m)
 }
 
 func clampCursor(cursor, delta, length int) int {

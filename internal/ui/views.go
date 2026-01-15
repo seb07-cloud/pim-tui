@@ -213,19 +213,11 @@ func (m Model) renderHeader() string {
 		Render(infoContent)
 
 	if showLogo {
-		// Left box: Full ASCII logo
-		logoStyle := lipgloss.NewStyle().
-			Foreground(colorHighlight).
-			Bold(true)
-
-		logoContent := logoStyle.Render(asciiLogo)
-
 		logoBox := panelStyle.
 			Width(logoBoxWidth).
 			Height(7).
 			Align(lipgloss.Center, lipgloss.Center).
-			Render(logoContent)
-
+			Render(highlightBoldStyle.Render(asciiLogo))
 		return lipgloss.JoinHorizontal(lipgloss.Top, logoBox, infoBox)
 	}
 
@@ -273,23 +265,6 @@ func (m Model) renderMainView() string {
 }
 
 func (m Model) renderTabBar() string {
-	width := m.width - 4
-
-	// Tab styles
-	activeTabStyle := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(colorHighlight).
-		Background(lipgloss.Color("#333333")).
-		Padding(0, 2).
-		Border(lipgloss.RoundedBorder(), true, true, false, true).
-		BorderForeground(colorHighlight)
-
-	inactiveTabStyle := lipgloss.NewStyle().
-		Foreground(colorDim).
-		Padding(0, 2).
-		Border(lipgloss.RoundedBorder(), true, true, false, true).
-		BorderForeground(colorBorder)
-
 	var rolesTab, groupsTab string
 	if m.activeTab == TabRoles {
 		rolesTab = activeTabStyle.Render("Roles")
@@ -300,13 +275,7 @@ func (m Model) renderTabBar() string {
 	}
 
 	tabs := lipgloss.JoinHorizontal(lipgloss.Bottom, rolesTab, " ", groupsTab)
-
-	// Add hint for tab switching
-	hint := dimStyle.Render("  (Tab/←→ to switch)")
-
-	tabBarContent := tabs + hint
-
-	return lipgloss.NewStyle().Width(width).Padding(0, 1).Render(tabBarContent)
+	return lipgloss.NewStyle().Width(m.width - 4).Padding(0, 1).Render(tabs + dimStyle.Render("  (Tab/←→ to switch)"))
 }
 
 func (m Model) renderRoleDetail() string {
@@ -391,26 +360,10 @@ func (m Model) renderGroupDetail() string {
 }
 
 func (m Model) renderRolesList(height int) string {
-	if len(m.roles) == 0 {
-		return detailDimStyle.Render("  No eligible roles found")
-	}
-
-	var lines []string
-	for i, role := range m.roles {
-		if len(lines) >= height {
-			break
-		}
-		if m.searchActive && !strings.Contains(strings.ToLower(role.DisplayName), strings.ToLower(m.searchQuery)) {
-			continue
-		}
-		lines = append(lines, m.renderRoleItem(i, role))
-	}
-
-	if len(lines) == 0 && m.searchActive {
-		return detailDimStyle.Render("  No roles match filter")
-	}
-
-	return strings.Join(lines, "\n")
+	return m.renderItemList(height, "roles", len(m.roles), func(i int) (string, azure.ActivationStatus, bool, bool) {
+		role := m.roles[i]
+		return role.DisplayName, role.Status, m.selectedRoles[i], i == m.rolesCursor && m.activeTab == TabRoles
+	})
 }
 
 func (m Model) listPanelWidth() int {
@@ -445,35 +398,11 @@ func (m Model) renderListItem(idx int, name string, status azure.ActivationStatu
 	return line
 }
 
-func (m Model) renderRoleItem(idx int, role azure.Role) string {
-	return m.renderListItem(idx, role.DisplayName, role.Status, m.selectedRoles[idx], idx == m.rolesCursor && m.activeTab == TabRoles)
-}
-
 func (m Model) renderGroupsList(height int) string {
-	if len(m.groups) == 0 {
-		return detailDimStyle.Render("  No eligible groups found")
-	}
-
-	var lines []string
-	for i, group := range m.groups {
-		if len(lines) >= height {
-			break
-		}
-		if m.searchActive && !strings.Contains(strings.ToLower(group.DisplayName), strings.ToLower(m.searchQuery)) {
-			continue
-		}
-		lines = append(lines, m.renderGroupItem(i, group))
-	}
-
-	if len(lines) == 0 && m.searchActive {
-		return detailDimStyle.Render("  No groups match filter")
-	}
-
-	return strings.Join(lines, "\n")
-}
-
-func (m Model) renderGroupItem(idx int, group azure.Group) string {
-	return m.renderListItem(idx, group.DisplayName, group.Status, m.selectedGroups[idx], idx == m.groupsCursor && m.activeTab == TabGroups)
+	return m.renderItemList(height, "groups", len(m.groups), func(i int) (string, azure.ActivationStatus, bool, bool) {
+		group := m.groups[i]
+		return group.DisplayName, group.Status, m.selectedGroups[i], i == m.groupsCursor && m.activeTab == TabGroups
+	})
 }
 
 func (m Model) renderLighthouseView() string {
@@ -733,6 +662,30 @@ func (m Model) renderSearch() string {
 }
 
 // Helper functions
+
+func (m Model) renderItemList(height int, itemType string, count int, getItem func(int) (name string, status azure.ActivationStatus, selected, isCursor bool)) string {
+	if count == 0 {
+		return detailDimStyle.Render(fmt.Sprintf("  No eligible %s found", itemType))
+	}
+
+	var lines []string
+	for i := 0; i < count; i++ {
+		if len(lines) >= height {
+			break
+		}
+		name, status, selected, isCursor := getItem(i)
+		if m.searchActive && !strings.Contains(strings.ToLower(name), strings.ToLower(m.searchQuery)) {
+			continue
+		}
+		lines = append(lines, m.renderListItem(i, name, status, selected, isCursor))
+	}
+
+	if len(lines) == 0 && m.searchActive {
+		return detailDimStyle.Render(fmt.Sprintf("  No %s match filter", itemType))
+	}
+
+	return strings.Join(lines, "\n")
+}
 
 func spinner(color lipgloss.Color) string {
 	chars := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
