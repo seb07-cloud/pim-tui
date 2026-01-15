@@ -225,56 +225,41 @@ func (m Model) renderHeader() string {
 }
 
 func (m Model) renderMainView() string {
-	// Tab bar
 	tabBar := m.renderTabBar()
 
-	// Content area
-	// Header: 9 lines (7 content + 2 border), Tab bar: 3 lines, Logs: 10 lines, Status: 3 lines
-	// Each panel has border (2) + padding (2) = 4 chars, and we have 2 panels side by side
+	// Panel dimensions
 	totalWidth := m.width - 8
-	listPanelWidth := totalWidth * 9 / 20          // List panel (45%) - same as logo box in header
-	detailPanelWidth := totalWidth - listPanelWidth // Detail panel (55%)
+	listPanelWidth := totalWidth * 9 / 20
+	detailPanelWidth := totalWidth - listPanelWidth
 	panelHeight := m.height - 25
 
-	var listPanel, detailPanel string
-
+	// Select content based on active tab
+	var title, listContent, detailContent string
 	if m.activeTab == TabRoles {
-		// Roles list panel (narrower)
-		rolesContent := m.renderRolesList(panelHeight - 2)
-		listPanel = activePanelStyle.Width(listPanelWidth).Height(panelHeight).Render(
-			panelTitleStyle.Foreground(colorHighlight).Render("● PIM Roles") + "\n" + rolesContent,
-		)
-		// Role details panel (wider)
-		detailPanel = panelStyle.Width(detailPanelWidth).Height(panelHeight).Render(
-			m.renderRoleDetail(),
-		)
+		title, listContent, detailContent = "● PIM Roles", m.renderRolesList(panelHeight-2), m.renderRoleDetail()
 	} else {
-		// Groups list panel (narrower)
-		groupsContent := m.renderGroupsList(panelHeight - 2)
-		listPanel = activePanelStyle.Width(listPanelWidth).Height(panelHeight).Render(
-			panelTitleStyle.Foreground(colorHighlight).Render("● PIM Groups") + "\n" + groupsContent,
-		)
-		// Group details panel (wider)
-		detailPanel = panelStyle.Width(detailPanelWidth).Height(panelHeight).Render(
-			m.renderGroupDetail(),
-		)
+		title, listContent, detailContent = "● PIM Groups", m.renderGroupsList(panelHeight-2), m.renderGroupDetail()
 	}
 
-	content := lipgloss.JoinHorizontal(lipgloss.Top, listPanel, detailPanel)
-	return lipgloss.JoinVertical(lipgloss.Left, tabBar, content)
+	listPanel := activePanelStyle.Width(listPanelWidth).Height(panelHeight).Render(
+		panelTitleStyle.Foreground(colorHighlight).Render(title) + "\n" + listContent,
+	)
+	detailPanel := panelStyle.Width(detailPanelWidth).Height(panelHeight).Render(detailContent)
+
+	return lipgloss.JoinVertical(lipgloss.Left, tabBar, lipgloss.JoinHorizontal(lipgloss.Top, listPanel, detailPanel))
 }
 
 func (m Model) renderTabBar() string {
-	var rolesTab, groupsTab string
-	if m.activeTab == TabRoles {
-		rolesTab = activeTabStyle.Render("Roles")
-		groupsTab = inactiveTabStyle.Render("Groups")
-	} else {
-		rolesTab = inactiveTabStyle.Render("Roles")
-		groupsTab = activeTabStyle.Render("Groups")
+	tabStyle := func(active bool) lipgloss.Style {
+		if active {
+			return activeTabStyle
+		}
+		return inactiveTabStyle
 	}
-
-	tabs := lipgloss.JoinHorizontal(lipgloss.Bottom, rolesTab, " ", groupsTab)
+	tabs := lipgloss.JoinHorizontal(lipgloss.Bottom,
+		tabStyle(m.activeTab == TabRoles).Render("Roles"), " ",
+		tabStyle(m.activeTab == TabGroups).Render("Groups"),
+	)
 	return lipgloss.NewStyle().Width(m.width - 4).Padding(0, 1).Render(tabs + dimStyle.Render("  (Tab/←→ to switch)"))
 }
 
@@ -289,11 +274,8 @@ func (m Model) renderRoleDetail() string {
 	lines = append(lines, detailTitleStyle.Render("Role Details"), "")
 	lines = append(lines, detailLabelStyle.Render("Name: ")+detailValueStyle.Render(role.DisplayName))
 	lines = append(lines, detailLabelStyle.Render("Status: ")+statusIcon(role.Status)+" "+role.Status.String())
-
-	if role.ExpiresAt != nil {
-		if remaining := time.Until(*role.ExpiresAt); remaining > 0 {
-			lines = append(lines, detailLabelStyle.Render("Expires: ")+detailValueStyle.Render(formatDuration(remaining)))
-		}
+	if exp := renderExpiryLine(role.ExpiresAt); exp != "" {
+		lines = append(lines, exp)
 	}
 
 	lines = append(lines, "", detailLabelStyle.Render("Permissions:"))
@@ -324,11 +306,8 @@ func (m Model) renderGroupDetail() string {
 	}
 
 	lines = append(lines, detailLabelStyle.Render("Status: ")+statusIcon(group.Status)+" "+group.Status.String())
-
-	if group.ExpiresAt != nil {
-		if remaining := time.Until(*group.ExpiresAt); remaining > 0 {
-			lines = append(lines, detailLabelStyle.Render("Expires: ")+detailValueStyle.Render(formatDuration(remaining)))
-		}
+	if exp := renderExpiryLine(group.ExpiresAt); exp != "" {
+		lines = append(lines, exp)
 	}
 
 	// Linked Entra Roles
@@ -378,13 +357,8 @@ func renderCheckbox(selected bool) string {
 }
 
 func (m Model) renderListItem(idx int, name string, status azure.ActivationStatus, selected, isCursor bool) string {
-	itemWidth := m.listPanelWidth()
-
 	// Format: "[x] ● Name" - Prefix: checkbox(3) + space(1) + icon(1) + space(1) = 6
-	nameWidth := itemWidth - 6
-	if nameWidth < 10 {
-		nameWidth = 10
-	}
+	nameWidth := max(m.listPanelWidth()-6, 10)
 
 	if len(name) > nameWidth {
 		name = name[:nameWidth-3] + "..."
@@ -409,23 +383,9 @@ func (m Model) renderLighthouseView() string {
 	// Match the total width of two side-by-side panels in main view
 	// Two panels use totalWidth = m.width - 8, each adding border(2) + padding(2)
 	// For single panel to match: use same totalWidth but only one set of border/padding
-	totalWidth := m.width - 8
-	panelWidth := totalWidth + 4 // Add back one panel's border/padding since we only have one panel
-	panelHeight := m.height - 25 // Same as main view
-
-	if panelHeight < 5 {
-		panelHeight = 5
-	}
-	if panelWidth < 20 {
-		panelWidth = 20
-	}
-
-	listHeight := panelHeight - 2
-	if listHeight < 1 {
-		listHeight = 1
-	}
-
-	content := m.renderLighthouseList(listHeight)
+	panelWidth := max(m.width-8+4, 20)
+	panelHeight := max(m.height-25, 5)
+	content := m.renderLighthouseList(max(panelHeight-2, 1))
 	panel := activePanelStyle.Width(panelWidth).Height(panelHeight).Render(
 		panelTitleStyle.Foreground(colorHighlight).Render("● Lighthouse Subscriptions") + "\n" + content,
 	)
@@ -436,10 +396,6 @@ func (m Model) renderLighthouseView() string {
 func (m Model) renderLighthouseList(height int) string {
 	if len(m.lighthouse) == 0 {
 		return detailDimStyle.Render("  No lighthouse subscriptions found")
-	}
-
-	if height < 1 {
-		height = 1
 	}
 
 	var lines []string
@@ -499,12 +455,8 @@ func (m Model) renderLogs() string {
 		timeStr := dimStyle.Render(entry.Time.Format("15:04:05"))
 		levelStr := levelStyle.Render(fmt.Sprintf("[%s]", entry.Level.String()))
 
-		// Calculate available width for message (prefix takes ~20 chars: "[ERROR] 15:04:05 ")
-		prefixWidth := lipgloss.Width(levelStr) + 1 + lipgloss.Width(timeStr) + 1
-		msgWidth := width - prefixWidth
-		if msgWidth < 20 {
-			msgWidth = 20
-		}
+		// Calculate available width for message
+		msgWidth := max(width-lipgloss.Width(levelStr)-lipgloss.Width(timeStr)-2, 20)
 
 		// Truncate message before styling to avoid cutting ANSI codes
 		msg := entry.Message
@@ -602,35 +554,32 @@ Status Icons:
     ○  Inactive     ◌  Pending approval
 `, int(m.duration.Hours()), durationHelp)
 
-	return confirmStyle.Width(m.width - 10).Render(
+	return confirmStyle.Width(m.dialogWidth()).Render(
 		titleStyle.Foreground(colorHighlight).Render("Help") + helpContent,
 	)
 }
 
 func (m Model) renderConfirm() string {
 	countStr := highlightBoldStyle.Render(fmt.Sprintf("%d", len(m.pendingActivations)))
-	durationStr := activeBoldStyle.Render(fmt.Sprintf("%d hours", int(m.duration.Hours())))
 
-	return confirmStyle.Width(m.width - 10).Render(
+	return confirmStyle.Width(m.dialogWidth()).Render(
 		titleStyle.Foreground(colorHighlight).Render("Confirm Activation") + "\n\n" +
-			fmt.Sprintf("Activate %s item(s) for %s?\n%s\n\n", countStr, durationStr, dimStyle.Render("(1-4/Tab to change duration)")) +
+			fmt.Sprintf("Activate %s item(s) for %s?\n%s\n\n", countStr, m.durationStr(), dimStyle.Render("(1-4/Tab to change duration)")) +
 			activeStyle.Render("(y)es") + " to continue or " + errorBoldStyle.Render("(n)o") + " to cancel",
 	)
 }
 
 func (m Model) renderJustification() string {
-	durationStr := activeBoldStyle.Render(fmt.Sprintf("%d hours", int(m.duration.Hours())))
-
-	return confirmStyle.Width(m.width - 10).Render(
+	return confirmStyle.Width(m.dialogWidth()).Render(
 		titleStyle.Foreground(colorHighlight).Render("Justification Required") + "\n" +
-			fmt.Sprintf("Duration: %s %s\n\n", durationStr, dimStyle.Render("(1-4/Tab to change)")) +
+			fmt.Sprintf("Duration: %s %s\n\n", m.durationStr(), dimStyle.Render("(1-4/Tab to change)")) +
 			m.justificationInput.View() + "\n\n" +
 			dimStyle.Render("Press Enter to confirm or Esc to cancel"),
 	)
 }
 
 func (m Model) renderActivating() string {
-	return confirmStyle.Width(m.width - 10).Render(
+	return confirmStyle.Width(m.dialogWidth()).Render(
 		titleStyle.Foreground(colorHighlight).Render("Activating...") + "\n\n" +
 			spinner(colorActive) + " Please wait while activations are processed...",
 	)
@@ -639,7 +588,7 @@ func (m Model) renderActivating() string {
 func (m Model) renderConfirmDeactivate() string {
 	countStr := errorBoldStyle.Render(fmt.Sprintf("%d", len(m.pendingDeactivations)))
 
-	return confirmStyle.Width(m.width - 10).Render(
+	return confirmStyle.Width(m.dialogWidth()).Render(
 		titleStyle.Foreground(colorError).Render("Confirm Deactivation") + "\n\n" +
 			fmt.Sprintf("Deactivate %s active item(s)?\n\n", countStr) +
 			activeStyle.Render("(y)es") + " to continue or " + errorBoldStyle.Render("(n)o") + " to cancel",
@@ -647,14 +596,14 @@ func (m Model) renderConfirmDeactivate() string {
 }
 
 func (m Model) renderDeactivating() string {
-	return confirmStyle.Width(m.width - 10).Render(
+	return confirmStyle.Width(m.dialogWidth()).Render(
 		titleStyle.Foreground(colorError).Render("Deactivating...") + "\n\n" +
 			spinner(colorError) + " Please wait while deactivations are processed...",
 	)
 }
 
 func (m Model) renderSearch() string {
-	return confirmStyle.Width(m.width - 10).Render(
+	return confirmStyle.Width(m.dialogWidth()).Render(
 		titleStyle.Foreground(colorHighlight).Render("Search / Filter") + "\n\n" +
 			m.searchInput.View() + "\n\n" +
 			dimStyle.Render("Press Enter to apply or Esc to cancel"),
@@ -695,12 +644,12 @@ func spinner(color lipgloss.Color) string {
 
 func (m Model) countActiveItems() (roles, groups int) {
 	for _, r := range m.roles {
-		if r.Status == azure.StatusActive || r.Status == azure.StatusExpiringSoon {
+		if r.Status.IsActive() {
 			roles++
 		}
 	}
 	for _, g := range m.groups {
-		if g.Status == azure.StatusActive || g.Status == azure.StatusExpiringSoon {
+		if g.Status.IsActive() {
 			groups++
 		}
 	}
@@ -724,6 +673,24 @@ func truncate(s string, max int) string {
 		return s
 	}
 	return s[:max-3] + "..."
+}
+
+func (m Model) dialogWidth() int {
+	return m.width - 10
+}
+
+func (m Model) durationStr() string {
+	return activeBoldStyle.Render(fmt.Sprintf("%d hours", int(m.duration.Hours())))
+}
+
+func renderExpiryLine(expiresAt *time.Time) string {
+	if expiresAt == nil {
+		return ""
+	}
+	if remaining := time.Until(*expiresAt); remaining > 0 {
+		return detailLabelStyle.Render("Expires: ") + detailValueStyle.Render(formatDuration(remaining))
+	}
+	return ""
 }
 
 func formatDuration(d time.Duration) string {

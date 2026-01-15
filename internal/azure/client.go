@@ -26,9 +26,11 @@ const (
 
 type Client struct {
 	cred       azcore.TokenCredential
+	pimCred    azcore.TokenCredential // Cached credential for PIM API
 	httpClient *http.Client
 	userID     string
-	useAzRest  bool // Use 'az rest' command instead of HTTP client
+	tenant     *Tenant // Cached tenant info
+	useAzRest  bool    // Use 'az rest' command instead of HTTP client
 }
 
 // NewClient creates a new Azure client
@@ -132,13 +134,16 @@ func (c *Client) azRestRequest(method, url string, body interface{}) ([]byte, er
 // pimRequest makes requests to the PIM Governance API (api.azrbac.mspim.azure.com)
 // This API uses the same token as ARM and works with Azure CLI credentials
 func (c *Client) pimRequest(ctx context.Context, method, url string, body interface{}) ([]byte, error) {
-	// Get token for the PIM API resource
-	cred, err := azidentity.NewAzureCLICredential(nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create CLI credential: %w", err)
+	// Lazily initialize PIM credential (cached for all subsequent calls)
+	if c.pimCred == nil {
+		cred, err := azidentity.NewAzureCLICredential(nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create CLI credential: %w", err)
+		}
+		c.pimCred = cred
 	}
 
-	token, err := cred.GetToken(ctx, policy.TokenRequestOptions{
+	token, err := c.pimCred.GetToken(ctx, policy.TokenRequestOptions{
 		Scopes: []string{"https://api.azrbac.mspim.azure.com/.default"},
 	})
 	if err != nil {
@@ -220,6 +225,10 @@ func (c *Client) GetCurrentUserInfo(ctx context.Context) (displayName, email str
 }
 
 func (c *Client) GetTenant(ctx context.Context) (*Tenant, error) {
+	if c.tenant != nil {
+		return c.tenant, nil
+	}
+
 	data, err := c.graphRequest(ctx, "GET", graphBaseURL+"/organization?$select=id,displayName", nil)
 	if err != nil {
 		return nil, err
@@ -239,8 +248,9 @@ func (c *Client) GetTenant(ctx context.Context) (*Tenant, error) {
 		return nil, fmt.Errorf("no organization found")
 	}
 
-	return &Tenant{
+	c.tenant = &Tenant{
 		ID:          result.Value[0].ID,
 		DisplayName: result.Value[0].DisplayName,
-	}, nil
+	}
+	return c.tenant, nil
 }

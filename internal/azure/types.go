@@ -24,6 +24,11 @@ func (s ActivationStatus) String() string {
 	}
 }
 
+// IsActive returns true if the status represents an active state (Active or ExpiringSoon)
+func (s ActivationStatus) IsActive() bool {
+	return s == StatusActive || s == StatusExpiringSoon
+}
+
 // StatusFromExpiry returns the activation status based on expiry time
 func StatusFromExpiry(expiry *time.Time) ActivationStatus {
 	if expiry == nil {

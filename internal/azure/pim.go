@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"sync"
 	"time"
 )
 
@@ -103,14 +104,28 @@ func (c *Client) GetActiveRoles(ctx context.Context) (map[string]*time.Time, err
 }
 
 func (c *Client) GetRoles(ctx context.Context) ([]Role, error) {
-	eligible, err := c.GetEligibleRoles(ctx)
-	if err != nil {
-		return nil, err
-	}
+	// Fetch eligible and active roles in parallel
+	var eligible []Role
+	var active map[string]*time.Time
+	var eligibleErr, activeErr error
 
-	active, err := c.GetActiveRoles(ctx)
-	if err != nil {
-		return nil, err
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		eligible, eligibleErr = c.GetEligibleRoles(ctx)
+	}()
+	go func() {
+		defer wg.Done()
+		active, activeErr = c.GetActiveRoles(ctx)
+	}()
+	wg.Wait()
+
+	if eligibleErr != nil {
+		return nil, eligibleErr
+	}
+	if activeErr != nil {
+		return nil, activeErr
 	}
 
 	for i := range eligible {

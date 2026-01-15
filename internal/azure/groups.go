@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"sync"
 	"time"
 )
 
@@ -56,20 +57,28 @@ func (c *Client) GetEligibleGroups(ctx context.Context) ([]Group, error) {
 		return nil, err
 	}
 
-	// Get group details for each unique group
+	// Get group details for each unique group (in parallel)
 	groupIDs := make(map[string]bool)
 	for _, g := range result.Value {
 		groupIDs[g.ResourceID] = true
 	}
 
-	// Fetch group names
+	// Fetch group names in parallel
 	groupNames := make(map[string]string)
+	var mu sync.Mutex
+	var wg sync.WaitGroup
 	for groupID := range groupIDs {
-		name, _ := c.getGroupName(ctx, groupID)
-		if name != "" {
-			groupNames[groupID] = name
-		}
+		wg.Add(1)
+		go func(id string) {
+			defer wg.Done()
+			if name, _ := c.getGroupName(ctx, id); name != "" {
+				mu.Lock()
+				groupNames[id] = name
+				mu.Unlock()
+			}
+		}(groupID)
 	}
+	wg.Wait()
 
 	groups := make([]Group, 0, len(result.Value))
 	for _, g := range result.Value {
@@ -143,14 +152,28 @@ func (c *Client) GetActiveGroups(ctx context.Context) (map[string]*time.Time, er
 }
 
 func (c *Client) GetGroups(ctx context.Context) ([]Group, error) {
-	eligible, err := c.GetEligibleGroups(ctx)
-	if err != nil {
-		return nil, err
-	}
+	// Fetch eligible and active groups in parallel
+	var eligible []Group
+	var active map[string]*time.Time
+	var eligibleErr, activeErr error
 
-	active, err := c.GetActiveGroups(ctx)
-	if err != nil {
-		return nil, err
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		eligible, eligibleErr = c.GetEligibleGroups(ctx)
+	}()
+	go func() {
+		defer wg.Done()
+		active, activeErr = c.GetActiveGroups(ctx)
+	}()
+	wg.Wait()
+
+	if eligibleErr != nil {
+		return nil, eligibleErr
+	}
+	if activeErr != nil {
+		return nil, activeErr
 	}
 
 	for i := range eligible {

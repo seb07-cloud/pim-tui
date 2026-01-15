@@ -358,11 +358,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.tenant = msg.tenant
 		m.loadingMessage = "Loading PIM roles and groups..."
 		m.log(LogInfo, "Connected to tenant: %s", m.tenant.DisplayName)
-		return m, tea.Batch(
-			loadRolesCmd(m.client),
-			loadGroupsCmd(m.client),
-			loadUserInfoCmd(m.client),
-		)
+		return m, tea.Batch(m.refreshCmd(), loadUserInfoCmd(m.client))
 
 	case userInfoLoadedMsg:
 		m.userDisplayName = msg.displayName
@@ -395,50 +391,33 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.log(LogError, "Activation failed: %v", msg.err)
 		} else {
 			m.log(LogInfo, "Activation completed successfully")
-			// Clear selections after successful activation
-			m.selectedRoles = make(map[int]bool)
-			m.selectedGroups = make(map[int]bool)
+			m.clearSelections()
 		}
-		// Refresh after activation
-		return m, tea.Batch(
-			loadRolesCmd(m.client),
-			loadGroupsCmd(m.client),
-		)
+		return m, m.refreshCmd()
 
 	case deactivationDoneMsg:
 		m.state = StateNormal
 		if msg.err != nil {
-			errStr := msg.err.Error()
-			if strings.Contains(errStr, "ActiveDurationTooShort") {
+			if strings.Contains(msg.err.Error(), "ActiveDurationTooShort") {
 				m.log(LogError, "Cannot deactivate: role must be active for at least 5 minutes")
 			} else {
 				m.log(LogError, "Deactivation failed: %v", msg.err)
 			}
 		} else {
 			m.log(LogInfo, "Deactivation completed successfully")
-			// Clear selections after successful deactivation
-			m.selectedRoles = make(map[int]bool)
-			m.selectedGroups = make(map[int]bool)
+			m.clearSelections()
 		}
-		// Refresh after deactivation
-		return m, tea.Batch(
-			loadRolesCmd(m.client),
-			loadGroupsCmd(m.client),
-		)
+		return m, m.refreshCmd()
 
 	case tickMsg:
-		// Always continue ticking for animations
-		cmds := []tea.Cmd{tickCmd()}
-
 		// Auto-refresh check (only in normal state)
 		if m.autoRefresh && m.client != nil && m.state == StateNormal &&
 			time.Since(m.lastRefresh) > time.Duration(m.config.AutoRefreshInterval)*time.Second {
 			m.lastRefresh = time.Now()
 			m.log(LogDebug, "Auto-refreshing...")
-			cmds = append(cmds, loadRolesCmd(m.client), loadGroupsCmd(m.client))
+			return m, tea.Batch(tickCmd(), m.refreshCmd())
 		}
-
-		return m, tea.Batch(cmds...)
+		return m, tickCmd()
 
 	case errMsg:
 		m.err = msg.err
@@ -472,6 +451,15 @@ func (m *Model) checkLoadingComplete() {
 		m.state = StateNormal
 		m.lastRefresh = time.Now()
 	}
+}
+
+func (m *Model) refreshCmd() tea.Cmd {
+	return tea.Batch(loadRolesCmd(m.client), loadGroupsCmd(m.client))
+}
+
+func (m *Model) clearSelections() {
+	m.selectedRoles = make(map[int]bool)
+	m.selectedGroups = make(map[int]bool)
 }
 
 func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -609,11 +597,7 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case "tab":
 		if m.viewMode == ViewMain {
-			if m.activeTab == TabRoles {
-				m.activeTab = TabGroups
-			} else {
-				m.activeTab = TabRoles
-			}
+			m.activeTab = 1 - m.activeTab // Toggle between 0 and 1
 		}
 
 	case " ":
@@ -640,19 +624,12 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.client != nil {
 			m.log(LogInfo, "Refreshing...")
 			m.lastRefresh = time.Now()
-			return m, tea.Batch(
-				loadRolesCmd(m.client),
-				loadGroupsCmd(m.client),
-			)
+			return m, m.refreshCmd()
 		}
 
 	case "a":
 		m.autoRefresh = !m.autoRefresh
-		if m.autoRefresh {
-			m.log(LogInfo, "Auto-refresh enabled")
-		} else {
-			m.log(LogInfo, "Auto-refresh disabled")
-		}
+		m.log(LogInfo, "Auto-refresh %s", map[bool]string{true: "enabled", false: "disabled"}[m.autoRefresh])
 
 	case "1", "2", "3", "4":
 		idx := int(msg.String()[0] - '1')
@@ -858,22 +835,14 @@ func (m *Model) initiateDeactivation() (tea.Model, tea.Cmd) {
 	m.pendingDeactivations = nil
 
 	if m.viewMode == ViewMain {
-		// Only collect active roles (StatusActive or StatusExpiringSoon are both active)
 		for idx := range m.selectedRoles {
-			if idx < len(m.roles) {
-				status := m.roles[idx].Status
-				if status == azure.StatusActive || status == azure.StatusExpiringSoon {
-					m.pendingDeactivations = append(m.pendingDeactivations, m.roles[idx])
-				}
+			if idx < len(m.roles) && m.roles[idx].Status.IsActive() {
+				m.pendingDeactivations = append(m.pendingDeactivations, m.roles[idx])
 			}
 		}
-		// Only collect active groups (StatusActive or StatusExpiringSoon are both active)
 		for idx := range m.selectedGroups {
-			if idx < len(m.groups) {
-				status := m.groups[idx].Status
-				if status == azure.StatusActive || status == azure.StatusExpiringSoon {
-					m.pendingDeactivations = append(m.pendingDeactivations, m.groups[idx])
-				}
+			if idx < len(m.groups) && m.groups[idx].Status.IsActive() {
+				m.pendingDeactivations = append(m.pendingDeactivations, m.groups[idx])
 			}
 		}
 	}

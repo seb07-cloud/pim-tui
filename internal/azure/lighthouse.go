@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 )
@@ -86,42 +87,71 @@ func (c *Client) GetLighthouseSubscriptions(ctx context.Context, groups []Group)
 		return nil, err
 	}
 
-	var subscriptions []LighthouseSubscription
+	// Query lighthouse delegations for all subscriptions in parallel
+	type subResult struct {
+		subs []LighthouseSubscription
+	}
+	results := make(chan subResult, len(subsResult.Value))
 
-	// For each subscription, check for lighthouse delegations
+	var wg sync.WaitGroup
 	for _, sub := range subsResult.Value {
-		lhURL := fmt.Sprintf("https://management.azure.com/subscriptions/%s/providers/Microsoft.ManagedServices/registrationAssignments?api-version=2022-10-01&$expandRegistrationDefinition=true", sub.SubscriptionID)
+		wg.Add(1)
+		go func(sub struct {
+			SubscriptionID string `json:"subscriptionId"`
+			DisplayName    string `json:"displayName"`
+			TenantID       string `json:"tenantId"`
+		}) {
+			defer wg.Done()
 
-		lhData, err := c.armRequest(ctx, "GET", lhURL)
-		if err != nil {
-			continue // Skip subscriptions we can't access
-		}
+			lhURL := fmt.Sprintf("https://management.azure.com/subscriptions/%s/providers/Microsoft.ManagedServices/registrationAssignments?api-version=2022-10-01&$expandRegistrationDefinition=true", sub.SubscriptionID)
 
-		var lhResult lighthouseResponse
-		if err := json.Unmarshal(lhData, &lhResult); err != nil {
-			continue
-		}
-
-		for _, lh := range lhResult.Value {
-			subscription := LighthouseSubscription{
-				ID:             sub.SubscriptionID,
-				DisplayName:    sub.DisplayName,
-				CustomerTenant: sub.TenantID,
-				Status:         StatusInactive,
+			lhData, err := c.armRequest(ctx, "GET", lhURL)
+			if err != nil {
+				results <- subResult{} // Skip subscriptions we can't access
+				return
 			}
 
-			// Try to match with a PIM group based on description or name
-			for _, g := range groups {
-				if containsGroupReference(lh.Properties.RegistrationDefinition.Properties.Description, g.DisplayName) {
-					subscription.LinkedGroupID = g.ID
-					subscription.LinkedGroupName = g.DisplayName
-					subscription.Status = g.Status
-					break
+			var lhResult lighthouseResponse
+			if err := json.Unmarshal(lhData, &lhResult); err != nil {
+				results <- subResult{}
+				return
+			}
+
+			var subs []LighthouseSubscription
+			for _, lh := range lhResult.Value {
+				subscription := LighthouseSubscription{
+					ID:             sub.SubscriptionID,
+					DisplayName:    sub.DisplayName,
+					CustomerTenant: sub.TenantID,
+					Status:         StatusInactive,
 				}
-			}
 
-			subscriptions = append(subscriptions, subscription)
-		}
+				// Try to match with a PIM group based on description or name
+				for _, g := range groups {
+					if containsGroupReference(lh.Properties.RegistrationDefinition.Properties.Description, g.DisplayName) {
+						subscription.LinkedGroupID = g.ID
+						subscription.LinkedGroupName = g.DisplayName
+						subscription.Status = g.Status
+						break
+					}
+				}
+
+				subs = append(subs, subscription)
+			}
+			results <- subResult{subs}
+		}(sub)
+	}
+
+	// Close results channel when all goroutines complete
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+
+	// Collect all results
+	var subscriptions []LighthouseSubscription
+	for r := range results {
+		subscriptions = append(subscriptions, r.subs...)
 	}
 
 	return subscriptions, nil
