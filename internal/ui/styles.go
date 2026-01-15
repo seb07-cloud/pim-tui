@@ -18,12 +18,15 @@ var (
 	colorBorder       = lipgloss.Color("#444444")
 	colorBorderActive = lipgloss.Color("#7d56f4")
 	colorDim          = lipgloss.Color("#666666")
+	colorWarning      = lipgloss.Color("#ff8c00") // Orange - for low time remaining
+	colorCritical     = lipgloss.Color("#ff4444") // Light red - for very low time
 
-	// Status icons
+	// Status icons - enhanced with more expressive symbols
 	iconActive   = "●"
 	iconExpiring = "◐"
 	iconInactive = "○"
 	iconPending  = "◌"
+	iconWarning  = "⚠"
 
 	// Base styles
 	titleStyle = lipgloss.NewStyle().
@@ -72,8 +75,9 @@ var (
 	progressBarFull  = lipgloss.NewStyle().Foreground(colorActive)
 	progressBarEmpty = lipgloss.NewStyle().Foreground(colorDim)
 
-	checkboxChecked   = "[x]"
-	checkboxUnchecked = "[ ]"
+	// Enhanced checkbox styling with Unicode characters
+	checkboxChecked   = "▣"
+	checkboxUnchecked = "▢"
 
 	confirmStyle = lipgloss.NewStyle().
 			Border(lipgloss.DoubleBorder()).
@@ -100,12 +104,12 @@ var (
 	errorBoldStyle     = lipgloss.NewStyle().Foreground(colorError).Bold(true)
 	highlightBoldStyle = lipgloss.NewStyle().Foreground(colorHighlight).Bold(true)
 
-	// Tab styles
+	// Tab styles - active tab is prominent with filled background
 	activeTabStyle = lipgloss.NewStyle().
 			Bold(true).
-			Foreground(colorHighlight).
-			Background(lipgloss.Color("#333333")).
-			Padding(0, 2).
+			Foreground(lipgloss.Color("#ffffff")).
+			Background(colorHighlight).
+			Padding(0, 3).
 			Border(lipgloss.RoundedBorder(), true, true, false, true).
 			BorderForeground(colorHighlight)
 
@@ -131,7 +135,7 @@ func statusIcon(status ActivationStatus) string {
 
 func renderProgressBar(remaining, total float64, width int) string {
 	if total <= 0 || remaining <= 0 {
-		return lipgloss.NewStyle().Foreground(colorDim).Render("────")
+		return lipgloss.NewStyle().Foreground(colorDim).Render(strings.Repeat("░", width))
 	}
 
 	ratio := remaining / total
@@ -142,7 +146,21 @@ func renderProgressBar(remaining, total float64, width int) string {
 	filled := int(float64(width) * ratio)
 	empty := width - filled
 
-	bar := progressBarFull.Render(strings.Repeat("█", filled)) +
+	// Choose color based on remaining time ratio
+	var barColor lipgloss.Color
+	switch {
+	case ratio > 0.5:
+		barColor = colorActive // Green - plenty of time
+	case ratio > 0.25:
+		barColor = colorExpiring // Yellow - getting low
+	case ratio > 0.1:
+		barColor = colorWarning // Orange - low
+	default:
+		barColor = colorCritical // Red - critical
+	}
+
+	barStyle := lipgloss.NewStyle().Foreground(barColor)
+	bar := barStyle.Render(strings.Repeat("█", filled)) +
 		progressBarEmpty.Render(strings.Repeat("░", empty))
 
 	return bar

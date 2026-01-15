@@ -30,13 +30,7 @@ type Tab int
 const (
 	TabRoles Tab = iota
 	TabGroups
-)
-
-type ViewMode int
-
-const (
-	ViewMain ViewMode = iota
-	ViewLighthouse
+	TabSubscriptions
 )
 
 type LogLevel int
@@ -105,9 +99,8 @@ type Model struct {
 	userEmail       string
 
 	// UI state
-	activeTab      Tab
-	viewMode       ViewMode
-	state          State
+	activeTab Tab
+	state     State
 	rolesCursor    int
 	groupsCursor   int
 	lightCursor    int
@@ -378,11 +371,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.groupsLoaded = true
 		m.log(LogInfo, "Loaded %d eligible groups", len(m.groups))
 		m.checkLoadingComplete()
-		return m, nil
+		// Load subscriptions (lighthouse) after groups are available
+		return m, loadLighthouseCmd(m.client, m.groups)
 
 	case lighthouseLoadedMsg:
 		m.lighthouse = msg.subs
-		m.log(LogInfo, "Loaded %d lighthouse subscriptions", len(m.lighthouse))
+		m.log(LogInfo, "Loaded %d subscriptions", len(m.lighthouse))
 		return m, nil
 
 	case activationDoneMsg:
@@ -586,19 +580,17 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.moveCursor(1)
 
 	case "left", "h":
-		if m.viewMode == ViewMain {
-			m.activeTab = TabRoles
+		if m.activeTab > TabRoles {
+			m.activeTab--
 		}
 
 	case "right", "l":
-		if m.viewMode == ViewMain {
-			m.activeTab = TabGroups
+		if m.activeTab < TabSubscriptions {
+			m.activeTab++
 		}
 
 	case "tab":
-		if m.viewMode == ViewMain {
-			m.activeTab = 1 - m.activeTab // Toggle between 0 and 1
-		}
+		m.activeTab = (m.activeTab + 1) % 3 // Cycle through 3 tabs
 
 	case " ":
 		m.toggleSelection()
@@ -608,17 +600,6 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case "x", "delete", "backspace":
 		return m.initiateDeactivation()
-
-	case "L":
-		if m.viewMode == ViewMain {
-			m.viewMode = ViewLighthouse
-			if len(m.lighthouse) == 0 && m.client != nil {
-				m.log(LogInfo, "Loading lighthouse subscriptions...")
-				return m, loadLighthouseCmd(m.client, m.groups)
-			}
-		} else {
-			m.viewMode = ViewMain
-		}
 
 	case "r", "R":
 		if m.client != nil {
@@ -734,23 +715,23 @@ func clampCursor(cursor, delta, length int) int {
 }
 
 func (m *Model) moveCursor(delta int) {
-	switch {
-	case m.viewMode == ViewLighthouse:
+	switch m.activeTab {
+	case TabSubscriptions:
 		m.lightCursor = clampCursor(m.lightCursor, delta, len(m.lighthouse))
-	case m.activeTab == TabRoles:
+	case TabRoles:
 		m.rolesCursor = clampCursor(m.rolesCursor, delta, len(m.roles))
-	case m.activeTab == TabGroups:
+	case TabGroups:
 		m.groupsCursor = clampCursor(m.groupsCursor, delta, len(m.groups))
 	}
 }
 
 func (m *Model) toggleSelection() {
-	switch {
-	case m.viewMode == ViewLighthouse:
+	switch m.activeTab {
+	case TabSubscriptions:
 		m.selectedLight[m.lightCursor] = !m.selectedLight[m.lightCursor]
-	case m.activeTab == TabRoles:
+	case TabRoles:
 		m.selectedRoles[m.rolesCursor] = !m.selectedRoles[m.rolesCursor]
-	case m.activeTab == TabGroups:
+	case TabGroups:
 		m.selectedGroups[m.groupsCursor] = !m.selectedGroups[m.groupsCursor]
 	}
 }
@@ -759,18 +740,20 @@ func (m *Model) initiateActivation() (tea.Model, tea.Cmd) {
 	// Collect pending activations
 	m.pendingActivations = nil
 
-	if m.viewMode == ViewLighthouse {
+	switch m.activeTab {
+	case TabSubscriptions:
 		for idx := range m.selectedLight {
 			if idx < len(m.lighthouse) {
 				m.pendingActivations = append(m.pendingActivations, m.lighthouse[idx])
 			}
 		}
-	} else {
+	case TabRoles:
 		for idx := range m.selectedRoles {
 			if idx < len(m.roles) {
 				m.pendingActivations = append(m.pendingActivations, m.roles[idx])
 			}
 		}
+	case TabGroups:
 		for idx := range m.selectedGroups {
 			if idx < len(m.groups) {
 				m.pendingActivations = append(m.pendingActivations, m.groups[idx])
@@ -834,15 +817,24 @@ func (m *Model) initiateDeactivation() (tea.Model, tea.Cmd) {
 	// Collect active items for deactivation
 	m.pendingDeactivations = nil
 
-	if m.viewMode == ViewMain {
+	switch m.activeTab {
+	case TabRoles:
 		for idx := range m.selectedRoles {
 			if idx < len(m.roles) && m.roles[idx].Status.IsActive() {
 				m.pendingDeactivations = append(m.pendingDeactivations, m.roles[idx])
 			}
 		}
+	case TabGroups:
 		for idx := range m.selectedGroups {
 			if idx < len(m.groups) && m.groups[idx].Status.IsActive() {
 				m.pendingDeactivations = append(m.pendingDeactivations, m.groups[idx])
+			}
+		}
+	case TabSubscriptions:
+		// Lighthouse subscriptions can also be deactivated if active
+		for idx := range m.selectedLight {
+			if idx < len(m.lighthouse) && m.lighthouse[idx].Status.IsActive() {
+				m.pendingDeactivations = append(m.pendingDeactivations, m.lighthouse[idx])
 			}
 		}
 	}

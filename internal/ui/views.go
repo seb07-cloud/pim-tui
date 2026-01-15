@@ -54,11 +54,7 @@ func (m Model) View() string {
 	case StateSearch:
 		sections = append(sections, m.renderSearch())
 	default:
-		if m.viewMode == ViewLighthouse {
-			sections = append(sections, m.renderLighthouseView())
-		} else {
-			sections = append(sections, m.renderMainView())
-		}
+		sections = append(sections, m.renderMainView())
 	}
 
 	// Log panel
@@ -73,7 +69,7 @@ func (m Model) View() string {
 func (m Model) renderLoading() string {
 	spin := spinner(colorActive)
 
-	// Build step indicators
+	// Build step indicators with progress
 	steps := []struct {
 		name   string
 		done   bool
@@ -85,8 +81,16 @@ func (m Model) renderLoading() string {
 		{"Loading PIM groups", m.groupsLoaded, m.tenant != nil && !m.groupsLoaded},
 	}
 
-	var stepLines []string
+	// Count completed steps for progress bar
+	completed := 0
 	for _, step := range steps {
+		if step.done {
+			completed++
+		}
+	}
+
+	var stepLines []string
+	for i, step := range steps {
 		var icon string
 		var style lipgloss.Style
 		if step.done {
@@ -96,8 +100,14 @@ func (m Model) renderLoading() string {
 		} else {
 			icon, style = "○", dimStyle
 		}
-		stepLines = append(stepLines, style.Render(fmt.Sprintf("  %s %s", icon, step.name)))
+		// Add step number for clarity
+		stepLines = append(stepLines, style.Render(fmt.Sprintf("  %s [%d/4] %s", icon, i+1, step.name)))
 	}
+
+	// Build overall progress bar
+	progressWidth := 30
+	progressBar := renderProgressBar(float64(completed), float64(len(steps)), progressWidth)
+	progressPercent := (completed * 100) / len(steps)
 
 	contentParts := []string{
 		highlightBoldStyle.Render(asciiLogo),
@@ -105,12 +115,19 @@ func (m Model) renderLoading() string {
 	}
 
 	if m.tenant != nil {
-		contentParts = append(contentParts, activeStyle.MarginTop(1).Render(fmt.Sprintf("Connected to: %s", m.tenant.DisplayName)))
+		contentParts = append(contentParts,
+			activeStyle.MarginTop(1).Render(fmt.Sprintf("✓ Connected to: %s", m.tenant.DisplayName)))
 	}
 
 	contentParts = append(contentParts,
 		detailValueStyle.MarginTop(2).Render(spin+" "+m.loadingMessage),
-		lipgloss.NewStyle().MarginTop(2).Render(strings.Join(stepLines, "\n")),
+		lipgloss.NewStyle().MarginTop(1).Render(strings.Join(stepLines, "\n")),
+		lipgloss.NewStyle().MarginTop(2).Render(
+			fmt.Sprintf("%s %s",
+				progressBar,
+				dimStyle.Render(fmt.Sprintf("%d%%", progressPercent)),
+			),
+		),
 	)
 
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center,
@@ -118,11 +135,38 @@ func (m Model) renderLoading() string {
 }
 
 func (m Model) renderError() string {
+	// Build troubleshooting tips based on error type
+	var tips string
+	errStr := ""
+	if m.err != nil {
+		errStr = m.err.Error()
+	}
+
+	tips = dimStyle.Render("━━━ Troubleshooting Tips ━━━\n")
+	if strings.Contains(errStr, "token") || strings.Contains(errStr, "credential") {
+		tips += dimStyle.Render("  • Run 'az login' to refresh your Azure credentials\n")
+		tips += dimStyle.Render("  • Check if your session has expired\n")
+	} else if strings.Contains(errStr, "network") || strings.Contains(errStr, "connection") {
+		tips += dimStyle.Render("  • Check your internet connection\n")
+		tips += dimStyle.Render("  • Verify VPN is connected if required\n")
+	} else if strings.Contains(errStr, "permission") || strings.Contains(errStr, "403") {
+		tips += dimStyle.Render("  • Verify you have PIM access in this tenant\n")
+		tips += dimStyle.Render("  • Contact your administrator\n")
+	} else {
+		tips += dimStyle.Render("  • Run 'az login' to refresh credentials\n")
+		tips += dimStyle.Render("  • Check your network connection\n")
+		tips += dimStyle.Render("  • Verify Azure CLI is installed correctly\n")
+	}
+
 	content := lipgloss.JoinVertical(lipgloss.Center,
 		errorBoldStyle.Render(asciiLogo),
-		errorBoldStyle.MarginTop(2).Render("Authentication Failed"),
-		detailValueStyle.MarginTop(1).Render(m.err.Error()),
-		dimStyle.MarginTop(2).Render("Press 'r' to retry or 'q' to quit"),
+		errorBoldStyle.MarginTop(2).Render("⚠ Authentication Failed"),
+		"",
+		detailLabelStyle.Render("Error: ")+detailValueStyle.Render(truncate(errStr, 60)),
+		"",
+		tips,
+		"",
+		activeStyle.Render(" [R] Retry ")+"  "+dimStyle.Render(" [Q] Quit "),
 	)
 
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, content)
@@ -151,75 +195,109 @@ func (m Model) renderHeader() string {
 
 	// Tenant Name and ID
 	if m.tenant != nil {
-		infoLines = append(infoLines, dimStyle.Render("Tenant:  ")+activeBoldStyle.Render(m.tenant.DisplayName))
-		infoLines = append(infoLines, dimStyle.Render("ID:      ")+detailValueStyle.Render(m.tenant.ID))
+		infoLines = append(infoLines, dimStyle.Render("Tenant: ")+activeBoldStyle.Render(m.tenant.DisplayName))
+		infoLines = append(infoLines, dimStyle.Render("User:   ")+detailValueStyle.Render(truncate(m.userEmail, 35)))
 	} else {
-		infoLines = append(infoLines, dimStyle.Render("Tenant:  ")+detailValueStyle.Render("Connecting..."))
-		infoLines = append(infoLines, dimStyle.Render("ID:      ")+detailValueStyle.Render("-"))
+		infoLines = append(infoLines, dimStyle.Render("Tenant: ")+detailValueStyle.Render("Connecting..."))
+		infoLines = append(infoLines, dimStyle.Render("User:   ")+detailValueStyle.Render("-"))
 	}
 
-	// User Principal Name
-	user := "-"
-	if m.userEmail != "" {
-		user = m.userEmail
-	} else if m.userDisplayName != "" {
-		user = m.userDisplayName
-	}
-	infoLines = append(infoLines, dimStyle.Render("User:    ")+detailValueStyle.Render(user))
-
-	// Active Roles count
+	// Quick stats badges
 	activeRoles, activeGroups := m.countActiveItems()
+	expiringCount := m.countExpiringItems()
+
+	// Build badge line
+	var badges []string
+
+	// Active badge
 	if activeRoles+activeGroups > 0 {
-		infoLines = append(infoLines, dimStyle.Render("Active:  ")+activeBoldStyle.Render(fmt.Sprintf("%d roles, %d groups", activeRoles, activeGroups)))
-	} else {
-		infoLines = append(infoLines, dimStyle.Render("Active:  ")+detailValueStyle.Render("0"))
+		activeBadge := lipgloss.NewStyle().
+			Background(colorActive).
+			Foreground(lipgloss.Color("#000000")).
+			Bold(true).
+			Padding(0, 1).
+			Render(fmt.Sprintf("● %d ACTIVE", activeRoles+activeGroups))
+		badges = append(badges, activeBadge)
+	}
+
+	// Expiring badge
+	if expiringCount > 0 {
+		expiringBadge := lipgloss.NewStyle().
+			Background(colorExpiring).
+			Foreground(lipgloss.Color("#000000")).
+			Bold(true).
+			Padding(0, 1).
+			Render(fmt.Sprintf("◐ %d EXPIRING", expiringCount))
+		badges = append(badges, expiringBadge)
+	}
+
+	if len(badges) > 0 {
+		infoLines = append(infoLines, strings.Join(badges, " "))
+	}
+
+	// Roles and Groups counts
+	rolesBadge := lipgloss.NewStyle().
+		Background(colorBorder).
+		Foreground(lipgloss.Color("#ffffff")).
+		Padding(0, 1).
+		Render(fmt.Sprintf("🔐 %d Roles", len(m.roles)))
+	groupsBadge := lipgloss.NewStyle().
+		Background(colorBorder).
+		Foreground(lipgloss.Color("#ffffff")).
+		Padding(0, 1).
+		Render(fmt.Sprintf("👥 %d Groups", len(m.groups)))
+	infoLines = append(infoLines, rolesBadge+" "+groupsBadge)
+
+	// Add search indicator if active
+	if m.searchActive {
+		infoLines = append(infoLines, detailLabelStyle.Render(fmt.Sprintf("🔍 \"%s\"", m.searchQuery)))
 	}
 
 	// Refresh state
 	var refreshStr string
 	if m.autoRefresh {
 		if secs, ok := m.refreshCountdown(); ok {
-			refreshStr = activeBoldStyle.Render(fmt.Sprintf("Auto (%ds)", secs))
+			refreshStr = activeBoldStyle.Render(fmt.Sprintf("↻ Auto (%ds)", secs))
 		} else {
-			refreshStr = activeBoldStyle.Render("Auto (ON)")
+			refreshStr = activeBoldStyle.Render("↻ Auto (ON)")
 		}
 	} else if !m.lastRefresh.IsZero() {
 		elapsed := time.Since(m.lastRefresh)
 		if elapsed < time.Minute {
-			refreshStr = detailValueStyle.Render("just now")
+			refreshStr = detailValueStyle.Render("↻ just now")
 		} else {
-			refreshStr = detailValueStyle.Render(fmt.Sprintf("%dm ago", int(elapsed.Minutes())))
+			refreshStr = dimStyle.Render(fmt.Sprintf("↻ %dm ago", int(elapsed.Minutes())))
 		}
 	} else {
-		refreshStr = detailValueStyle.Render("-")
+		refreshStr = dimStyle.Render("↻ -")
 	}
-	infoLines = append(infoLines, dimStyle.Render("Refresh: ")+refreshStr)
-
-	// Version
-	infoLines = append(infoLines, dimStyle.Render("Version: ")+detailValueStyle.Render(fmt.Sprintf("v%s", m.version)))
-
-	// Mode/Search indicators (if any)
-	if m.viewMode == ViewLighthouse {
-		infoLines = append(infoLines, highlightBoldStyle.Render("[LIGHTHOUSE]"))
-	} else if m.searchActive {
-		infoLines = append(infoLines, detailLabelStyle.Render(fmt.Sprintf("[SEARCH: %s]", m.searchQuery)))
-	}
+	infoLines = append(infoLines, refreshStr)
+	infoLines = append(infoLines, dimStyle.Render(fmt.Sprintf("v%s", m.version)))
 
 	infoContent := strings.Join(infoLines, "\n")
 
-	infoBox := panelStyle.
-		Width(infoBoxWidth).
-		Height(7).
-		Render(infoContent)
-
 	if showLogo {
+		// Logo has 6 lines - pad info content to match for consistent box heights
+		logoLines := 6
+		for len(infoLines) < logoLines {
+			infoLines = append(infoLines, "")
+		}
+		infoContent = strings.Join(infoLines, "\n")
+
+		infoBox := panelStyle.
+			Width(infoBoxWidth).
+			Render(infoContent)
+
 		logoBox := panelStyle.
 			Width(logoBoxWidth).
-			Height(7).
 			Align(lipgloss.Center, lipgloss.Center).
 			Render(highlightBoldStyle.Render(asciiLogo))
 		return lipgloss.JoinHorizontal(lipgloss.Top, logoBox, infoBox)
 	}
+
+	infoBox := panelStyle.
+		Width(infoBoxWidth).
+		Render(infoContent)
 
 	return infoBox
 }
@@ -233,16 +311,33 @@ func (m Model) renderMainView() string {
 	detailPanelWidth := totalWidth - listPanelWidth
 	panelHeight := m.height - 25
 
-	// Select content based on active tab
+	// Select content based on active tab with enhanced icons
 	var title, listContent, detailContent string
-	if m.activeTab == TabRoles {
-		title, listContent, detailContent = "● PIM Roles", m.renderRolesList(panelHeight-2), m.renderRoleDetail()
-	} else {
-		title, listContent, detailContent = "● PIM Groups", m.renderGroupsList(panelHeight-2), m.renderGroupDetail()
+	switch m.activeTab {
+	case TabRoles:
+		title = "🔐 PIM Roles"
+		listContent = m.renderRolesList(panelHeight - 2)
+		detailContent = m.renderRoleDetail()
+	case TabGroups:
+		title = "👥 PIM Groups"
+		listContent = m.renderGroupsList(panelHeight - 2)
+		detailContent = m.renderGroupDetail()
+	case TabSubscriptions:
+		title = "📑 Subscriptions"
+		listContent = m.renderSubscriptionsList(max(panelHeight-2, 1))
+		detailContent = m.renderSubscriptionDetail()
 	}
 
+	// Prominent panel title with background
+	prominentTitle := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("#ffffff")).
+		Background(colorHighlight).
+		Padding(0, 2).
+		Render(title)
+
 	listPanel := activePanelStyle.Width(listPanelWidth).Height(panelHeight).Render(
-		panelTitleStyle.Foreground(colorHighlight).Render(title) + "\n" + listContent,
+		prominentTitle + "\n" + listContent,
 	)
 	detailPanel := panelStyle.Width(detailPanelWidth).Height(panelHeight).Render(detailContent)
 
@@ -256,29 +351,93 @@ func (m Model) renderTabBar() string {
 		}
 		return inactiveTabStyle
 	}
+
+	// Count active items per tab for badges
+	activeRoles := 0
+	for _, r := range m.roles {
+		if r.Status.IsActive() {
+			activeRoles++
+		}
+	}
+	activeGroups := 0
+	for _, g := range m.groups {
+		if g.Status.IsActive() {
+			activeGroups++
+		}
+	}
+	activeSubs := 0
+	for _, s := range m.lighthouse {
+		if s.Status.IsActive() {
+			activeSubs++
+		}
+	}
+
+	// Build tab labels with counts
+	rolesLabel := fmt.Sprintf("🔐 Roles (%d)", len(m.roles))
+	if activeRoles > 0 {
+		rolesLabel = fmt.Sprintf("🔐 Roles (%d) %s", len(m.roles), activeStyle.Render(fmt.Sprintf("●%d", activeRoles)))
+	}
+
+	groupsLabel := fmt.Sprintf("👥 Groups (%d)", len(m.groups))
+	if activeGroups > 0 {
+		groupsLabel = fmt.Sprintf("👥 Groups (%d) %s", len(m.groups), activeStyle.Render(fmt.Sprintf("●%d", activeGroups)))
+	}
+
+	subsLabel := fmt.Sprintf("📑 Subs (%d)", len(m.lighthouse))
+	if activeSubs > 0 {
+		subsLabel = fmt.Sprintf("📑 Subs (%d) %s", len(m.lighthouse), activeStyle.Render(fmt.Sprintf("●%d", activeSubs)))
+	}
+
 	tabs := lipgloss.JoinHorizontal(lipgloss.Bottom,
-		tabStyle(m.activeTab == TabRoles).Render("Roles"), " ",
-		tabStyle(m.activeTab == TabGroups).Render("Groups"),
+		tabStyle(m.activeTab == TabRoles).Render(rolesLabel), " ",
+		tabStyle(m.activeTab == TabGroups).Render(groupsLabel), " ",
+		tabStyle(m.activeTab == TabSubscriptions).Render(subsLabel),
 	)
-	return lipgloss.NewStyle().Width(m.width - 4).Padding(0, 1).Render(tabs + dimStyle.Render("  (Tab/←→ to switch)"))
+
+	// Add full-width underline indicator for active tab
+	tabBarWidth := m.width - 6
+	underline := highlightBoldStyle.Render(strings.Repeat("━", tabBarWidth))
+
+	return lipgloss.NewStyle().Width(m.width - 4).Padding(0, 1).Render(
+		tabs + dimStyle.Render("  ←→/Tab") + "\n" + underline,
+	)
 }
 
 func (m Model) renderRoleDetail() string {
 	if len(m.roles) == 0 || m.rolesCursor >= len(m.roles) {
-		return detailDimStyle.Render("No role selected")
+		return lipgloss.JoinVertical(lipgloss.Center,
+			"",
+			"",
+			dimStyle.Render("🔐"),
+			"",
+			dimStyle.Render("No role selected"),
+			"",
+			dimStyle.Render("Select a role from the list"),
+			dimStyle.Render("to view its details"),
+		)
 	}
 
 	role := m.roles[m.rolesCursor]
 	var lines []string
 
-	lines = append(lines, detailTitleStyle.Render("Role Details"), "")
+	// Title with decorative line
+	lines = append(lines, detailTitleStyle.Render("━━━ 🔐 Role Details ━━━"), "")
 	lines = append(lines, detailLabelStyle.Render("Name: ")+detailValueStyle.Render(role.DisplayName))
 	lines = append(lines, detailLabelStyle.Render("Status: ")+statusIcon(role.Status)+" "+role.Status.String())
-	if exp := renderExpiryLine(role.ExpiresAt); exp != "" {
-		lines = append(lines, exp)
+
+	// Enhanced expiry display with progress bar
+	if role.ExpiresAt != nil {
+		remaining := time.Until(*role.ExpiresAt)
+		if remaining > 0 {
+			lines = append(lines, detailLabelStyle.Render("Expires: ")+detailValueStyle.Render(formatDuration(remaining)))
+			// Show progress bar for active roles (assuming max 8h activation)
+			maxDuration := 8 * time.Hour
+			lines = append(lines, detailDimStyle.Render("         ")+renderProgressBar(remaining.Seconds(), maxDuration.Seconds(), 20))
+		}
 	}
 
-	lines = append(lines, "", detailLabelStyle.Render("Permissions:"))
+	lines = append(lines, "", detailDimStyle.Render("─────────────────────────────"))
+	lines = append(lines, detailLabelStyle.Render("Permissions:"))
 	if permissions := GetRolePermissions(role.RoleDefinitionID); len(permissions) > 0 {
 		for _, perm := range permissions {
 			lines = append(lines, detailDimStyle.Render("  • "+perm))
@@ -292,13 +451,23 @@ func (m Model) renderRoleDetail() string {
 
 func (m Model) renderGroupDetail() string {
 	if len(m.groups) == 0 || m.groupsCursor >= len(m.groups) {
-		return detailDimStyle.Render("No group selected")
+		return lipgloss.JoinVertical(lipgloss.Center,
+			"",
+			"",
+			dimStyle.Render("👥"),
+			"",
+			dimStyle.Render("No group selected"),
+			"",
+			dimStyle.Render("Select a group from the list"),
+			dimStyle.Render("to view its details"),
+		)
 	}
 
 	group := m.groups[m.groupsCursor]
 	var lines []string
 
-	lines = append(lines, detailTitleStyle.Render("Group Details"), "")
+	// Title with decorative line
+	lines = append(lines, detailTitleStyle.Render("━━━ 👥 Group Details ━━━"), "")
 	lines = append(lines, detailLabelStyle.Render("Name: ")+detailValueStyle.Render(group.DisplayName))
 
 	if group.Description != "" {
@@ -306,12 +475,20 @@ func (m Model) renderGroupDetail() string {
 	}
 
 	lines = append(lines, detailLabelStyle.Render("Status: ")+statusIcon(group.Status)+" "+group.Status.String())
-	if exp := renderExpiryLine(group.ExpiresAt); exp != "" {
-		lines = append(lines, exp)
+
+	// Enhanced expiry display with progress bar
+	if group.ExpiresAt != nil {
+		remaining := time.Until(*group.ExpiresAt)
+		if remaining > 0 {
+			lines = append(lines, detailLabelStyle.Render("Expires: ")+detailValueStyle.Render(formatDuration(remaining)))
+			maxDuration := 8 * time.Hour
+			lines = append(lines, detailDimStyle.Render("         ")+renderProgressBar(remaining.Seconds(), maxDuration.Seconds(), 20))
+		}
 	}
 
 	// Linked Entra Roles
-	lines = append(lines, "", detailLabelStyle.Render("Linked Entra Roles:"))
+	lines = append(lines, "", detailDimStyle.Render("─────────────────────────────"))
+	lines = append(lines, detailLabelStyle.Render("Linked Entra Roles:"))
 	if len(group.LinkedRoles) > 0 {
 		for _, lr := range group.LinkedRoles {
 			lines = append(lines, detailDimStyle.Render("  "+statusIcon(lr.Status)+" "+lr.DisplayName))
@@ -321,7 +498,8 @@ func (m Model) renderGroupDetail() string {
 	}
 
 	// Linked Azure RBAC Roles
-	lines = append(lines, "", detailLabelStyle.Render("Linked Azure RBAC:"))
+	lines = append(lines, "", detailDimStyle.Render("─────────────────────────────"))
+	lines = append(lines, detailLabelStyle.Render("Linked Azure RBAC:"))
 	if len(group.LinkedAzureRBac) > 0 {
 		for _, ar := range group.LinkedAzureRBac {
 			scopeShort := ar.Scope
@@ -339,9 +517,9 @@ func (m Model) renderGroupDetail() string {
 }
 
 func (m Model) renderRolesList(height int) string {
-	return m.renderItemList(height, "roles", len(m.roles), func(i int) (string, azure.ActivationStatus, bool, bool) {
+	return m.renderItemListWithExpiry(height, "roles", len(m.roles), func(i int) (string, azure.ActivationStatus, bool, bool, *time.Time) {
 		role := m.roles[i]
-		return role.DisplayName, role.Status, m.selectedRoles[i], i == m.rolesCursor && m.activeTab == TabRoles
+		return role.DisplayName, role.Status, m.selectedRoles[i], i == m.rolesCursor && m.activeTab == TabRoles, role.ExpiresAt
 	})
 }
 
@@ -351,7 +529,7 @@ func (m Model) listPanelWidth() int {
 
 func renderCheckbox(selected bool) string {
 	if selected {
-		return activeStyle.Render(checkboxChecked)
+		return highlightBoldStyle.Render(checkboxChecked)
 	}
 	return dimStyle.Render(checkboxUnchecked)
 }
@@ -364,7 +542,13 @@ func (m Model) renderListItem(idx int, name string, status azure.ActivationStatu
 		name = name[:nameWidth-3] + "..."
 	}
 
-	line := fmt.Sprintf("%s %s %s", renderCheckbox(selected), statusIcon(status), name)
+	// Apply search highlighting if search is active
+	displayName := name
+	if m.searchActive && m.searchQuery != "" {
+		displayName = highlightSearchMatch(name, m.searchQuery)
+	}
+
+	line := fmt.Sprintf("%s %s %s", renderCheckbox(selected), statusIcon(status), displayName)
 
 	if isCursor {
 		return cursorStyle.Render(line)
@@ -373,43 +557,60 @@ func (m Model) renderListItem(idx int, name string, status azure.ActivationStatu
 }
 
 func (m Model) renderGroupsList(height int) string {
-	return m.renderItemList(height, "groups", len(m.groups), func(i int) (string, azure.ActivationStatus, bool, bool) {
+	return m.renderItemListWithExpiry(height, "groups", len(m.groups), func(i int) (string, azure.ActivationStatus, bool, bool, *time.Time) {
 		group := m.groups[i]
-		return group.DisplayName, group.Status, m.selectedGroups[i], i == m.groupsCursor && m.activeTab == TabGroups
+		return group.DisplayName, group.Status, m.selectedGroups[i], i == m.groupsCursor && m.activeTab == TabGroups, group.ExpiresAt
 	})
 }
 
-func (m Model) renderLighthouseView() string {
-	// Match the total width of two side-by-side panels in main view
-	// Two panels use totalWidth = m.width - 8, each adding border(2) + padding(2)
-	// For single panel to match: use same totalWidth but only one set of border/padding
-	panelWidth := max(m.width-8+4, 20)
-	panelHeight := max(m.height-25, 5)
-	content := m.renderLighthouseList(max(panelHeight-2, 1))
-	panel := activePanelStyle.Width(panelWidth).Height(panelHeight).Render(
-		panelTitleStyle.Foreground(colorHighlight).Render("● Lighthouse Subscriptions") + "\n" + content,
-	)
-
-	return panel
-}
-
-func (m Model) renderLighthouseList(height int) string {
+func (m Model) renderSubscriptionsList(height int) string {
 	if len(m.lighthouse) == 0 {
-		return detailDimStyle.Render("  No lighthouse subscriptions found")
+		return lipgloss.JoinVertical(lipgloss.Center,
+			"",
+			dimStyle.Render("📑"),
+			dimStyle.Render("No subscriptions found"),
+			dimStyle.Render("Check delegated access assignments"),
+		)
+	}
+
+	count := len(m.lighthouse)
+	displayHeight := height - 1 // Reserve for scroll indicator
+
+	// Calculate scroll window centered on cursor
+	startIdx := 0
+	if count > displayHeight {
+		startIdx = m.lightCursor - displayHeight/2
+		if startIdx < 0 {
+			startIdx = 0
+		}
+		if startIdx+displayHeight > count {
+			startIdx = count - displayHeight
+		}
 	}
 
 	var lines []string
-	for i, sub := range m.lighthouse {
-		if i >= height {
-			break
+	endIdx := min(startIdx+displayHeight, count)
+	for i := startIdx; i < endIdx; i++ {
+		lines = append(lines, m.renderSubscriptionItem(i, m.lighthouse[i]))
+	}
+
+	// Add scroll indicator if needed
+	if count > displayHeight {
+		scrollInfo := dimStyle.Render(fmt.Sprintf("  ↕ %d/%d", m.lightCursor+1, count))
+		if startIdx > 0 && endIdx < count {
+			scrollInfo = dimStyle.Render(fmt.Sprintf("  ↑↓ %d/%d", m.lightCursor+1, count))
+		} else if startIdx > 0 {
+			scrollInfo = dimStyle.Render(fmt.Sprintf("  ↑ %d/%d", m.lightCursor+1, count))
+		} else if endIdx < count {
+			scrollInfo = dimStyle.Render(fmt.Sprintf("  ↓ %d/%d", m.lightCursor+1, count))
 		}
-		lines = append(lines, m.renderLighthouseItem(i, sub))
+		lines = append(lines, scrollInfo)
 	}
 
 	return strings.Join(lines, "\n")
 }
 
-func (m Model) renderLighthouseItem(idx int, sub azure.LighthouseSubscription) string {
+func (m Model) renderSubscriptionItem(idx int, sub azure.LighthouseSubscription) string {
 	groupInfo := ""
 	if sub.LinkedGroupName != "" {
 		groupInfo = detailLabelStyle.Render(fmt.Sprintf(" via: %s", sub.LinkedGroupName))
@@ -423,40 +624,117 @@ func (m Model) renderLighthouseItem(idx int, sub azure.LighthouseSubscription) s
 	return itemStyle.Render(line)
 }
 
+func (m Model) renderSubscriptionDetail() string {
+	if len(m.lighthouse) == 0 || m.lightCursor >= len(m.lighthouse) {
+		return lipgloss.JoinVertical(lipgloss.Center,
+			"",
+			"",
+			dimStyle.Render("📑"),
+			"",
+			dimStyle.Render("No subscription selected"),
+			"",
+			dimStyle.Render("Select a subscription from"),
+			dimStyle.Render("the list to view details"),
+		)
+	}
+
+	sub := m.lighthouse[m.lightCursor]
+	var lines []string
+
+	// Title with decorative line
+	lines = append(lines, detailTitleStyle.Render("━━━ 📑 Subscription Details ━━━"), "")
+
+	// Subscription name
+	lines = append(lines, detailLabelStyle.Render("Name: ")+detailValueStyle.Render(sub.DisplayName))
+
+	// Status
+	lines = append(lines, detailLabelStyle.Render("Status: ")+statusIcon(sub.Status)+" "+sub.Status.String())
+
+	// Subscription ID
+	if sub.ID != "" {
+		lines = append(lines, detailLabelStyle.Render("ID: ")+detailDimStyle.Render(sub.ID))
+	}
+
+	// Customer tenant info
+	if sub.CustomerTenant != "" {
+		lines = append(lines, "", detailDimStyle.Render("─────────────────────────────"))
+		lines = append(lines, detailLabelStyle.Render("Customer Tenant:"))
+		lines = append(lines, detailDimStyle.Render("  "+sub.CustomerTenant))
+	}
+
+	// Linked group info
+	lines = append(lines, "", detailDimStyle.Render("─────────────────────────────"))
+	lines = append(lines, detailLabelStyle.Render("Access Via:"))
+	if sub.LinkedGroupName != "" {
+		lines = append(lines, detailDimStyle.Render("  "+statusIcon(sub.Status)+" "+sub.LinkedGroupName))
+		if sub.LinkedGroupID != "" {
+			lines = append(lines, detailDimStyle.Render("  ID: "+truncate(sub.LinkedGroupID, 30)))
+		}
+	} else {
+		lines = append(lines, detailDimStyle.Italic(true).Render("  (direct access)"))
+	}
+
+	return strings.Join(lines, "\n")
+}
+
 func (m Model) renderLogs() string {
 	logHeight := 8
 	// Match the width of two side-by-side panels in header/main view
-	// Two panels: totalWidth (m.width - 8) + 2*border(2) + 2*padding(2) = m.width
-	// Single panel needs same visual width, so: content + border(2) + padding(2) = m.width
-	// But there seems to be extra space, so use m.width - 6 to account for outer margin
 	width := m.width - 6
 
 	var lines []string
 
-	// Get last N logs
-	start := len(m.logs) - logHeight
+	// Add log panel header with level indicator
+	levelIndicator := dimStyle.Render("Level: ")
+	switch m.logLevel {
+	case LogError:
+		levelIndicator += errorBoldStyle.Render("ERROR")
+	case LogInfo:
+		levelIndicator += detailLabelStyle.Render("INFO")
+	case LogDebug:
+		levelIndicator += dimStyle.Render("DEBUG")
+	}
+	header := dimStyle.Render("📋 Activity Log") + "  " + levelIndicator
+	lines = append(lines, header)
+	lines = append(lines, dimStyle.Render(strings.Repeat("─", min(width-4, 50))))
+
+	// Get last N logs (reduced by 2 for header)
+	displayHeight := logHeight - 2
+	start := len(m.logs) - displayHeight
 	if start < 0 {
 		start = 0
+	}
+
+	if len(m.logs) == 0 {
+		lines = append(lines, dimStyle.Render("  No activity yet..."))
 	}
 
 	for i := start; i < len(m.logs); i++ {
 		entry := m.logs[i]
 
-		var levelStyle, msgStyle lipgloss.Style
+		// Skip entries below current log level
+		if entry.Level > m.logLevel {
+			continue
+		}
+
+		var levelIcon string
+		var msgStyle lipgloss.Style
 		switch entry.Level {
 		case LogDebug:
-			levelStyle, msgStyle = dimStyle, logDebugStyle
+			levelIcon = dimStyle.Render("○")
+			msgStyle = logDebugStyle
 		case LogError:
-			levelStyle, msgStyle = errorBoldStyle, logErrorStyle
+			levelIcon = errorBoldStyle.Render("●")
+			msgStyle = logErrorStyle
 		default:
-			levelStyle, msgStyle = detailLabelStyle, logInfoStyle
+			levelIcon = activeStyle.Render("●")
+			msgStyle = logInfoStyle
 		}
 
 		timeStr := dimStyle.Render(entry.Time.Format("15:04:05"))
-		levelStr := levelStyle.Render(fmt.Sprintf("[%s]", entry.Level.String()))
 
 		// Calculate available width for message
-		msgWidth := max(width-lipgloss.Width(levelStr)-lipgloss.Width(timeStr)-2, 20)
+		msgWidth := max(width-15, 20)
 
 		// Truncate message before styling to avoid cutting ANSI codes
 		msg := entry.Message
@@ -464,21 +742,32 @@ func (m Model) renderLogs() string {
 			msg = msg[:msgWidth-3] + "..."
 		}
 
-		line := fmt.Sprintf("%s %s %s", levelStr, timeStr, msgStyle.Render(msg))
+		line := fmt.Sprintf("%s %s %s", levelIcon, timeStr, msgStyle.Render(msg))
 		lines = append(lines, line)
 	}
 
 	// Pad with empty lines if needed
 	for len(lines) < logHeight {
-		lines = append([]string{""}, lines...)
+		lines = append(lines, "")
 	}
 
 	return logPanelStyle.Width(width).Render(strings.Join(lines, "\n"))
 }
 
 func (m Model) renderStatusBar() string {
-	durationStr := highlightBoldStyle.Render(fmt.Sprintf("⏱ %dh", int(m.duration.Hours())))
+	// Duration indicator with visual selector
+	var durationDisplay string
+	for i, preset := range m.config.DurationPresets {
+		if i < 4 {
+			if i == m.durationIndex {
+				durationDisplay += highlightBoldStyle.Render(fmt.Sprintf("[%dh]", preset))
+			} else {
+				durationDisplay += dimStyle.Render(fmt.Sprintf(" %dh ", preset))
+			}
+		}
+	}
 
+	// Auto-refresh status
 	var autoStr string
 	if m.autoRefresh {
 		if secs, ok := m.refreshCountdown(); ok {
@@ -490,24 +779,46 @@ func (m Model) renderStatusBar() string {
 		autoStr = dimStyle.Render("↻ OFF")
 	}
 
-	eligibleStr := detailLabelStyle.Render(fmt.Sprintf("📋 %d roles, %d groups", len(m.roles), len(m.groups)))
+	// Active items count
+	activeRoles, activeGroups := m.countActiveItems()
+	var activeStr string
+	if activeRoles+activeGroups > 0 {
+		activeStr = activeBoldStyle.Render(fmt.Sprintf("● %d active", activeRoles+activeGroups))
+	} else {
+		activeStr = dimStyle.Render("● 0 active")
+	}
 
-	selected := len(m.selectedRoles) + len(m.selectedGroups)
-	if m.viewMode == ViewLighthouse {
+	// Selection count based on active tab
+	var selected int
+	switch m.activeTab {
+	case TabRoles:
+		selected = len(m.selectedRoles)
+	case TabGroups:
+		selected = len(m.selectedGroups)
+	case TabSubscriptions:
 		selected = len(m.selectedLight)
 	}
 	var selectStr string
 	if selected > 0 {
-		selectStr = activeBoldStyle.Render(fmt.Sprintf("✓ %d selected", selected))
+		selectStr = highlightBoldStyle.Render(fmt.Sprintf("✓ %d selected", selected))
 	} else {
 		selectStr = dimStyle.Render("✓ 0 selected")
 	}
 
-	helpHints := dimStyle.Render("↑↓ navigate │ Tab/←→ switch tab │ Space select │ Enter activate │ L lighthouse │ r refresh │ ? help │ q quit")
+	// Search indicator
+	var searchStr string
+	if m.searchActive {
+		searchStr = detailLabelStyle.Render(fmt.Sprintf(" │  🔍 \"%s\"", m.searchQuery))
+	}
 
-	left := fmt.Sprintf("%s  │  %s  │  %s  │  %s", durationStr, autoStr, eligibleStr, selectStr)
+	// Build status line
+	statusLine := fmt.Sprintf("⏱ %s  │  %s  │  %s  │  %s%s",
+		durationDisplay, autoStr, activeStr, selectStr, searchStr)
 
-	return helpStyle.Width(m.width - 2).Render(left + "\n" + helpHints)
+	// Context-aware help hints
+	helpHints := dimStyle.Render("←→ tabs │ ↑↓ navigate │ Tab switch │ Space select │ Enter activate │ / search │ ? help")
+
+	return helpStyle.Width(m.width - 2).Render(statusLine + "\n" + helpHints)
 }
 
 func (m Model) renderHelp() string {
@@ -519,94 +830,200 @@ func (m Model) renderHelp() string {
 		}
 	}
 
-	helpContent := fmt.Sprintf(`
-Key Bindings:
+	// Build help with styled sections
+	navSection := detailLabelStyle.Render("━━━ Navigation ━━━") + "\n" +
+		dimStyle.Render("  ↑/k ↓/j") + detailValueStyle.Render("       Move cursor up/down\n") +
+		dimStyle.Render("  ←/h →/l") + detailValueStyle.Render("       Switch tabs (Roles/Groups/Subs)\n") +
+		dimStyle.Render("  Tab") + detailValueStyle.Render("           Cycle through tabs\n")
 
-  Navigation
-    ↑/k, ↓/j       Move cursor up/down
-    ←/h, →/l       Switch tabs (Roles / Groups)
-    Tab            Switch tabs
-    L              Toggle Lighthouse mode (delegated subs)
+	selectSection := detailLabelStyle.Render("━━━ Selection & Search ━━━") + "\n" +
+		dimStyle.Render("  Space") + detailValueStyle.Render("         Select/deselect item\n") +
+		dimStyle.Render("  /") + detailValueStyle.Render("             Search/filter\n") +
+		dimStyle.Render("  Esc") + detailValueStyle.Render("           Clear search filter\n")
 
-  Selection & Search
-    Space          Select/deselect item under cursor
-    /              Search/filter roles and groups
-    Esc            Clear search filter
+	actionSection := detailLabelStyle.Render("━━━ Actions ━━━") + "\n" +
+		dimStyle.Render("  Enter") + detailValueStyle.Render("         Activate selected items\n") +
+		dimStyle.Render("  x/Del/BS") + detailValueStyle.Render("      Deactivate active items\n") +
+		dimStyle.Render("  r/F5") + detailValueStyle.Render("          Refresh data from Azure\n")
 
-  Actions
-    Enter          Activate selected items
-    x / Del / BS   Deactivate selected active items
-    r / F5         Refresh data from Azure
+	durationSection := detailLabelStyle.Render(fmt.Sprintf("━━━ Duration (Current: %dh) ━━━", int(m.duration.Hours()))) + "\n" + durationHelp
 
-  Duration (for activation) - Current: %dh
-%s
-  Display & Settings
-    v              Cycle log level (error → info → debug)
-    c              Copy logs to clipboard
-    e              Export activation history to clipboard
-    a              Toggle auto-refresh (60s interval)
-    ?              Show/hide this help
-    Esc            Cancel current action / close dialogs
-    q / Ctrl+C     Quit application
+	settingsSection := detailLabelStyle.Render("━━━ Display & Settings ━━━") + "\n" +
+		dimStyle.Render("  v") + detailValueStyle.Render("             Cycle log level\n") +
+		dimStyle.Render("  c") + detailValueStyle.Render("             Copy logs to clipboard\n") +
+		dimStyle.Render("  e") + detailValueStyle.Render("             Export activation history\n") +
+		dimStyle.Render("  a") + detailValueStyle.Render("             Toggle auto-refresh\n") +
+		dimStyle.Render("  ?") + detailValueStyle.Render("             Show/hide this help\n") +
+		dimStyle.Render("  q/Ctrl+C") + detailValueStyle.Render("      Quit application\n")
 
-Status Icons:
-    ●  Active       ◐  Expiring soon (< 30 min)
-    ○  Inactive     ◌  Pending approval
-`, int(m.duration.Hours()), durationHelp)
+	iconSection := detailLabelStyle.Render("━━━ Status Icons ━━━") + "\n" +
+		activeStyle.Render("  ● Active") + "       " + lipgloss.NewStyle().Foreground(colorExpiring).Render("◐ Expiring soon\n") +
+		dimStyle.Render("  ○ Inactive") + "     " + lipgloss.NewStyle().Foreground(colorPending).Render("◌ Pending approval\n")
+
+	helpContent := "\n" + navSection + "\n" + selectSection + "\n" + actionSection + "\n" +
+		durationSection + "\n" + settingsSection + "\n" + iconSection
 
 	return confirmStyle.Width(m.dialogWidth()).Render(
-		titleStyle.Foreground(colorHighlight).Render("Help") + helpContent,
+		titleStyle.Foreground(colorHighlight).Render("━━━ Help ━━━") + helpContent,
 	)
 }
 
 func (m Model) renderConfirm() string {
-	countStr := highlightBoldStyle.Render(fmt.Sprintf("%d", len(m.pendingActivations)))
+	count := len(m.pendingActivations)
+	countStr := highlightBoldStyle.Render(fmt.Sprintf("%d", count))
+
+	// Build list of items to activate
+	var itemList string
+	maxShow := 5
+	shown := 0
+	for _, item := range m.pendingActivations {
+		if shown >= maxShow {
+			remaining := count - maxShow
+			itemList += dimStyle.Render(fmt.Sprintf("  ... and %d more\n", remaining))
+			break
+		}
+		switch v := item.(type) {
+		case azure.Role:
+			itemList += fmt.Sprintf("  %s %s\n", statusIcon(v.Status), v.DisplayName)
+		case azure.Group:
+			itemList += fmt.Sprintf("  %s %s\n", statusIcon(v.Status), v.DisplayName)
+		}
+		shown++
+	}
+
+	// Duration selector visual
+	var durationOptions string
+	for i, preset := range m.config.DurationPresets {
+		if i < 4 {
+			if i == m.durationIndex {
+				durationOptions += highlightBoldStyle.Render(fmt.Sprintf(" [%dh] ", preset))
+			} else {
+				durationOptions += dimStyle.Render(fmt.Sprintf("  %dh  ", preset))
+			}
+		}
+	}
 
 	return confirmStyle.Width(m.dialogWidth()).Render(
-		titleStyle.Foreground(colorHighlight).Render("Confirm Activation") + "\n\n" +
-			fmt.Sprintf("Activate %s item(s) for %s?\n%s\n\n", countStr, m.durationStr(), dimStyle.Render("(1-4/Tab to change duration)")) +
-			activeStyle.Render("(y)es") + " to continue or " + errorBoldStyle.Render("(n)o") + " to cancel",
+		titleStyle.Foreground(colorHighlight).Render("━━━ Confirm Activation ━━━") + "\n\n" +
+			fmt.Sprintf("Activate %s item(s):\n", countStr) +
+			itemList + "\n" +
+			detailLabelStyle.Render("Duration: ") + durationOptions + "\n" +
+			dimStyle.Render("(Press 1-4 or Tab to change)\n\n") +
+			activeStyle.Render(" [Y] Yes ") + "  " + errorBoldStyle.Render(" [N] No "),
 	)
 }
 
 func (m Model) renderJustification() string {
+	// Duration selector visual
+	var durationOptions string
+	for i, preset := range m.config.DurationPresets {
+		if i < 4 {
+			if i == m.durationIndex {
+				durationOptions += highlightBoldStyle.Render(fmt.Sprintf(" [%dh] ", preset))
+			} else {
+				durationOptions += dimStyle.Render(fmt.Sprintf("  %dh  ", preset))
+			}
+		}
+	}
+
 	return confirmStyle.Width(m.dialogWidth()).Render(
-		titleStyle.Foreground(colorHighlight).Render("Justification Required") + "\n" +
-			fmt.Sprintf("Duration: %s %s\n\n", m.durationStr(), dimStyle.Render("(1-4/Tab to change)")) +
+		titleStyle.Foreground(colorHighlight).Render("━━━ Justification Required ━━━") + "\n\n" +
+			detailLabelStyle.Render("Duration: ") + durationOptions + "\n" +
+			dimStyle.Render("(Press 1-4 or Tab to change)\n\n") +
+			detailLabelStyle.Render("Reason for activation:") + "\n" +
 			m.justificationInput.View() + "\n\n" +
-			dimStyle.Render("Press Enter to confirm or Esc to cancel"),
+			activeStyle.Render(" [Enter] Confirm ") + "  " + dimStyle.Render(" [Esc] Cancel "),
 	)
 }
 
 func (m Model) renderActivating() string {
+	count := len(m.pendingActivations)
+	progressAnimation := spinnerDots(colorActive)
+
 	return confirmStyle.Width(m.dialogWidth()).Render(
-		titleStyle.Foreground(colorHighlight).Render("Activating...") + "\n\n" +
-			spinner(colorActive) + " Please wait while activations are processed...",
+		titleStyle.Foreground(colorHighlight).Render("━━━ Activating ━━━") + "\n\n" +
+			fmt.Sprintf("%s Processing %d item(s)...\n\n", progressAnimation, count) +
+			activeStyle.Render("  ████████████████████  ") + "\n\n" +
+			dimStyle.Render("Please wait while Azure processes your request.\n") +
+			dimStyle.Render("This may take a few moments."),
 	)
 }
 
 func (m Model) renderConfirmDeactivate() string {
-	countStr := errorBoldStyle.Render(fmt.Sprintf("%d", len(m.pendingDeactivations)))
+	count := len(m.pendingDeactivations)
+	countStr := errorBoldStyle.Render(fmt.Sprintf("%d", count))
+
+	// Build list of items to deactivate
+	var itemList string
+	maxShow := 5
+	shown := 0
+	for _, item := range m.pendingDeactivations {
+		if shown >= maxShow {
+			remaining := count - maxShow
+			itemList += dimStyle.Render(fmt.Sprintf("  ... and %d more\n", remaining))
+			break
+		}
+		switch v := item.(type) {
+		case azure.Role:
+			itemList += fmt.Sprintf("  %s %s\n", statusIcon(v.Status), v.DisplayName)
+		case azure.Group:
+			itemList += fmt.Sprintf("  %s %s\n", statusIcon(v.Status), v.DisplayName)
+		}
+		shown++
+	}
 
 	return confirmStyle.Width(m.dialogWidth()).Render(
-		titleStyle.Foreground(colorError).Render("Confirm Deactivation") + "\n\n" +
-			fmt.Sprintf("Deactivate %s active item(s)?\n\n", countStr) +
-			activeStyle.Render("(y)es") + " to continue or " + errorBoldStyle.Render("(n)o") + " to cancel",
+		titleStyle.Foreground(colorError).Render("━━━ Confirm Deactivation ━━━") + "\n\n" +
+			fmt.Sprintf("Deactivate %s active item(s):\n", countStr) +
+			itemList + "\n" +
+			errorBoldStyle.Render(" [Y] Yes ") + "  " + dimStyle.Render(" [N] No "),
 	)
 }
 
 func (m Model) renderDeactivating() string {
+	count := len(m.pendingDeactivations)
+	progressAnimation := spinnerDots(colorError)
+
 	return confirmStyle.Width(m.dialogWidth()).Render(
-		titleStyle.Foreground(colorError).Render("Deactivating...") + "\n\n" +
-			spinner(colorError) + " Please wait while deactivations are processed...",
+		titleStyle.Foreground(colorError).Render("━━━ Deactivating ━━━") + "\n\n" +
+			fmt.Sprintf("%s Processing %d item(s)...\n\n", progressAnimation, count) +
+			errorBoldStyle.Render("  ████████████████████  ") + "\n\n" +
+			dimStyle.Render("Please wait while Azure processes your request.\n") +
+			dimStyle.Render("This may take a few moments."),
 	)
 }
 
 func (m Model) renderSearch() string {
+	// Count matches for current search input
+	query := m.searchInput.Value()
+	var matchInfo string
+	if query != "" {
+		roleMatches, groupMatches := 0, 0
+		for _, r := range m.roles {
+			if strings.Contains(strings.ToLower(r.DisplayName), strings.ToLower(query)) {
+				roleMatches++
+			}
+		}
+		for _, g := range m.groups {
+			if strings.Contains(strings.ToLower(g.DisplayName), strings.ToLower(query)) {
+				groupMatches++
+			}
+		}
+		total := roleMatches + groupMatches
+		if total > 0 {
+			matchInfo = activeStyle.Render(fmt.Sprintf("Found: %d roles, %d groups", roleMatches, groupMatches))
+		} else {
+			matchInfo = errorBoldStyle.Render("No matches found")
+		}
+	} else {
+		matchInfo = dimStyle.Render("Type to search...")
+	}
+
 	return confirmStyle.Width(m.dialogWidth()).Render(
-		titleStyle.Foreground(colorHighlight).Render("Search / Filter") + "\n\n" +
+		titleStyle.Foreground(colorHighlight).Render("━━━ Search / Filter ━━━") + "\n\n" +
 			m.searchInput.View() + "\n\n" +
-			dimStyle.Render("Press Enter to apply or Esc to cancel"),
+			matchInfo + "\n\n" +
+			activeStyle.Render(" [Enter] Apply ") + "  " + dimStyle.Render(" [Esc] Cancel "),
 	)
 }
 
@@ -614,7 +1031,19 @@ func (m Model) renderSearch() string {
 
 func (m Model) renderItemList(height int, itemType string, count int, getItem func(int) (name string, status azure.ActivationStatus, selected, isCursor bool)) string {
 	if count == 0 {
-		return detailDimStyle.Render(fmt.Sprintf("  No eligible %s found", itemType))
+		// Enhanced empty state
+		emptyIcon := "📭"
+		if itemType == "roles" {
+			emptyIcon = "🔐"
+		} else if itemType == "groups" {
+			emptyIcon = "👥"
+		}
+		return lipgloss.JoinVertical(lipgloss.Center,
+			"",
+			dimStyle.Render(emptyIcon),
+			dimStyle.Render(fmt.Sprintf("No eligible %s found", itemType)),
+			dimStyle.Render("Check your PIM assignments"),
+		)
 	}
 
 	var lines []string
@@ -630,16 +1059,215 @@ func (m Model) renderItemList(height int, itemType string, count int, getItem fu
 	}
 
 	if len(lines) == 0 && m.searchActive {
-		return detailDimStyle.Render(fmt.Sprintf("  No %s match filter", itemType))
+		return lipgloss.JoinVertical(lipgloss.Center,
+			"",
+			dimStyle.Render("🔍"),
+			dimStyle.Render(fmt.Sprintf("No %s match \"%s\"", itemType, m.searchQuery)),
+			dimStyle.Render("Try a different search term"),
+		)
 	}
 
 	return strings.Join(lines, "\n")
+}
+
+// renderItemListWithExpiry renders a list with optional expiry time display
+func (m Model) renderItemListWithExpiry(height int, itemType string, count int, getItem func(int) (name string, status azure.ActivationStatus, selected, isCursor bool, expiresAt *time.Time)) string {
+	if count == 0 {
+		emptyIcon := "📭"
+		if itemType == "roles" {
+			emptyIcon = "🔐"
+		} else if itemType == "groups" {
+			emptyIcon = "👥"
+		}
+		return lipgloss.JoinVertical(lipgloss.Center,
+			"",
+			dimStyle.Render(emptyIcon),
+			dimStyle.Render(fmt.Sprintf("No eligible %s found", itemType)),
+			dimStyle.Render("Check your PIM assignments"),
+		)
+	}
+
+	// First pass: count visible items after filtering
+	visibleIndices := make([]int, 0, count)
+	for i := 0; i < count; i++ {
+		name, _, _, _, _ := getItem(i)
+		if m.searchActive && !strings.Contains(strings.ToLower(name), strings.ToLower(m.searchQuery)) {
+			continue
+		}
+		visibleIndices = append(visibleIndices, i)
+	}
+
+	if len(visibleIndices) == 0 && m.searchActive {
+		return lipgloss.JoinVertical(lipgloss.Center,
+			"",
+			dimStyle.Render("🔍"),
+			dimStyle.Render(fmt.Sprintf("No %s match \"%s\"", itemType, m.searchQuery)),
+			dimStyle.Render("Try a different search term"),
+		)
+	}
+
+	// Find cursor position in visible list
+	cursorVisibleIdx := 0
+	for idx, i := range visibleIndices {
+		_, _, _, isCursor, _ := getItem(i)
+		if isCursor {
+			cursorVisibleIdx = idx
+			break
+		}
+	}
+
+	// Calculate scroll window
+	startIdx := 0
+	displayHeight := height - 1 // Reserve 1 line for scroll indicator
+	if len(visibleIndices) > displayHeight {
+		// Center cursor in view when possible
+		startIdx = cursorVisibleIdx - displayHeight/2
+		if startIdx < 0 {
+			startIdx = 0
+		}
+		if startIdx+displayHeight > len(visibleIndices) {
+			startIdx = len(visibleIndices) - displayHeight
+		}
+	}
+
+	var lines []string
+	endIdx := min(startIdx+displayHeight, len(visibleIndices))
+	for _, i := range visibleIndices[startIdx:endIdx] {
+		name, status, selected, isCursor, expiresAt := getItem(i)
+		lines = append(lines, m.renderListItemWithExpiry(i, name, status, selected, isCursor, expiresAt))
+	}
+
+	// Add scroll indicator if there are more items
+	if len(visibleIndices) > displayHeight {
+		scrollInfo := dimStyle.Render(fmt.Sprintf("  ↕ %d/%d", cursorVisibleIdx+1, len(visibleIndices)))
+		if startIdx > 0 && endIdx < len(visibleIndices) {
+			scrollInfo = dimStyle.Render(fmt.Sprintf("  ↑↓ %d/%d", cursorVisibleIdx+1, len(visibleIndices)))
+		} else if startIdx > 0 {
+			scrollInfo = dimStyle.Render(fmt.Sprintf("  ↑ %d/%d", cursorVisibleIdx+1, len(visibleIndices)))
+		} else if endIdx < len(visibleIndices) {
+			scrollInfo = dimStyle.Render(fmt.Sprintf("  ↓ %d/%d", cursorVisibleIdx+1, len(visibleIndices)))
+		}
+		lines = append(lines, scrollInfo)
+	}
+
+	return strings.Join(lines, "\n")
+}
+
+// renderListItemWithExpiry renders a list item with optional compact expiry time
+func (m Model) renderListItemWithExpiry(idx int, name string, status azure.ActivationStatus, selected, isCursor bool, expiresAt *time.Time) string {
+	// Calculate available width for name (accounting for expiry suffix)
+	baseWidth := m.listPanelWidth() - 6 // checkbox + status icon
+	expiryWidth := 0
+	var expirySuffix string
+
+	// Add compact expiry time for active/expiring items
+	if expiresAt != nil && status.IsActive() {
+		remaining := time.Until(*expiresAt)
+		if remaining > 0 {
+			expirySuffix = formatCompactDuration(remaining)
+			expiryWidth = len(expirySuffix) + 1 // +1 for space
+		}
+	}
+
+	nameWidth := max(baseWidth-expiryWidth, 10)
+	if len(name) > nameWidth {
+		name = name[:nameWidth-3] + "..."
+	}
+
+	// Apply search highlighting if search is active
+	displayName := name
+	if m.searchActive && m.searchQuery != "" {
+		displayName = highlightSearchMatch(name, m.searchQuery)
+	}
+
+	// Build line with optional expiry
+	var line string
+	if expirySuffix != "" {
+		// Color the expiry based on time remaining
+		var expiryStyle lipgloss.Style
+		remaining := time.Until(*expiresAt)
+		switch {
+		case remaining < 15*time.Minute:
+			expiryStyle = lipgloss.NewStyle().Foreground(colorCritical)
+		case remaining < 30*time.Minute:
+			expiryStyle = lipgloss.NewStyle().Foreground(colorWarning)
+		case remaining < time.Hour:
+			expiryStyle = lipgloss.NewStyle().Foreground(colorExpiring)
+		default:
+			expiryStyle = dimStyle
+		}
+		line = fmt.Sprintf("%s %s %s %s", renderCheckbox(selected), statusIcon(status), displayName, expiryStyle.Render(expirySuffix))
+	} else {
+		line = fmt.Sprintf("%s %s %s", renderCheckbox(selected), statusIcon(status), displayName)
+	}
+
+	if isCursor {
+		return cursorStyle.Render(line)
+	}
+	return line
+}
+
+// formatCompactDuration formats duration in a compact form like "2h" or "45m"
+func formatCompactDuration(d time.Duration) string {
+	if d < time.Minute {
+		return "<1m"
+	}
+	if d < time.Hour {
+		return fmt.Sprintf("%dm", int(d.Minutes()))
+	}
+	h := int(d.Hours())
+	m := int(d.Minutes()) % 60
+	if m == 0 {
+		return fmt.Sprintf("%dh", h)
+	}
+	return fmt.Sprintf("%dh%dm", h, m)
 }
 
 func spinner(color lipgloss.Color) string {
 	chars := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 	idx := int(time.Now().UnixMilli()/100) % len(chars)
 	return lipgloss.NewStyle().Foreground(color).Render(chars[idx])
+}
+
+// spinnerDots provides a dots-based spinner for activation states
+func spinnerDots(color lipgloss.Color) string {
+	chars := []string{"⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"}
+	idx := int(time.Now().UnixMilli()/80) % len(chars)
+	return lipgloss.NewStyle().Foreground(color).Render(chars[idx])
+}
+
+// spinnerPulse provides a pulsing effect for waiting states
+func spinnerPulse(color lipgloss.Color) string {
+	chars := []string{"○", "◔", "◑", "◕", "●", "◕", "◑", "◔"}
+	idx := int(time.Now().UnixMilli()/150) % len(chars)
+	return lipgloss.NewStyle().Foreground(color).Render(chars[idx])
+}
+
+// highlightSearchMatch highlights the search query within the text
+func highlightSearchMatch(text, query string) string {
+	if query == "" {
+		return text
+	}
+
+	lowerText := strings.ToLower(text)
+	lowerQuery := strings.ToLower(query)
+
+	idx := strings.Index(lowerText, lowerQuery)
+	if idx == -1 {
+		return text
+	}
+
+	// Build the highlighted string
+	before := text[:idx]
+	match := text[idx : idx+len(query)]
+	after := text[idx+len(query):]
+
+	highlightStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#000000")).
+		Background(colorExpiring).
+		Bold(true)
+
+	return before + highlightStyle.Render(match) + after
 }
 
 func (m Model) countActiveItems() (roles, groups int) {
@@ -654,6 +1282,21 @@ func (m Model) countActiveItems() (roles, groups int) {
 		}
 	}
 	return
+}
+
+func (m Model) countExpiringItems() int {
+	count := 0
+	for _, r := range m.roles {
+		if r.Status == StatusExpiringSoon {
+			count++
+		}
+	}
+	for _, g := range m.groups {
+		if g.Status == StatusExpiringSoon {
+			count++
+		}
+	}
+	return count
 }
 
 func (m Model) refreshCountdown() (remaining int, hasCountdown bool) {
