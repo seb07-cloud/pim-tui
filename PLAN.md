@@ -184,7 +184,7 @@ theme:
 
 ### Build from source
 ```bash
-git clone https://github.com/sebsebseb1982/pim-tui
+git clone https://github.com/seb07-cloud/pim-tui
 cd pim-tui
 go build -o pim-tui ./cmd/pim-tui
 ./pim-tui

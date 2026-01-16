@@ -67,8 +67,8 @@ import (
     "github.com/charmbracelet/bubbles/textinput"
     tea "github.com/charmbracelet/bubbletea"
 
-    "github.com/sebsebseb1982/pim-tui/internal/azure"
-    "github.com/sebsebseb1982/pim-tui/internal/config"
+    "github.com/seb07-cloud/pim-tui/internal/azure"
+    "github.com/seb07-cloud/pim-tui/internal/config"
 )
 ```
 

@@ -52,7 +52,6 @@ func NewClient() (*Client, error) {
 // Opens the default browser for the user to authenticate with Azure.
 // Returns a new Client on success, or error on failure/timeout.
 func AuthenticateWithBrowser(ctx context.Context) (*Client, error) {
-	// Create interactive browser credential with default options
 	cred, err := azidentity.NewInteractiveBrowserCredential(nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create browser credential: %w", err)
@@ -68,7 +67,7 @@ func AuthenticateWithBrowser(ctx context.Context) (*Client, error) {
 
 	return &Client{
 		cred:       cred,
-		pimCred:    cred, // Same credential works for all scopes
+		pimCred:    cred,
 		httpClient: &http.Client{Timeout: 30 * time.Second},
 	}, nil
 }

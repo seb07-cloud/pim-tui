@@ -2,7 +2,7 @@
 
 ## What This Is
 
-A terminal UI for Azure Privileged Identity Management (PIM). Allows users to view and activate eligible Entra ID roles, PIM groups, and Azure RBAC roles (including Lighthouse/cross-tenant subscriptions) from a single keyboard-driven interface.
+A terminal UI for Azure Privileged Identity Management (PIM). Allows users to view and activate eligible Entra ID roles, PIM groups, and Azure RBAC roles (including Lighthouse/cross-tenant subscriptions) from a single keyboard-driven interface. Now with in-app browser authentication.
 
 ## Core Value
 
@@ -12,87 +12,90 @@ Fast, reliable role activation without leaving the terminal. If activation doesn
 
 ### Validated
 
-<!-- Shipped and confirmed working — inferred from existing codebase -->
+<!-- Shipped and confirmed working -->
 
-- ✓ View eligible and active Entra ID roles — existing
-- ✓ View eligible and active PIM groups — existing
-- ✓ View eligible and active Azure RBAC roles (Lighthouse subscriptions) — existing
-- ✓ Activate/deactivate roles with justification — existing
-- ✓ Multi-select activation (batch multiple items) — existing
-- ✓ Tab navigation between Roles, Groups, Lighthouse panels — existing
-- ✓ Status indicators (active, expiring soon, inactive) — existing
-- ✓ Activity log panel with clipboard copy — existing
-- ✓ Configurable theme colors — existing
-- ✓ Configurable duration presets — existing
-- ✓ Cross-platform (Windows, Linux, macOS) — existing
+**Original (v0.1):**
+- ✓ View eligible and active Entra ID roles — v0.1
+- ✓ View eligible and active PIM groups — v0.1
+- ✓ View eligible and active Azure RBAC roles (Lighthouse subscriptions) — v0.1
+- ✓ Activate/deactivate roles with justification — v0.1
+- ✓ Multi-select activation (batch multiple items) — v0.1
+- ✓ Tab navigation between Roles, Groups, Lighthouse panels — v0.1
+- ✓ Status indicators (active, expiring soon, inactive) — v0.1
+- ✓ Activity log panel with clipboard copy — v0.1
+- ✓ Configurable theme colors — v0.1
+- ✓ Configurable duration presets — v0.1
+- ✓ Cross-platform (Windows, Linux, macOS) — v0.1
+
+**v1.1 Refactor & Reliability:**
+- ✓ Native REST with azidentity (no `az rest` CLI) — v1.1
+- ✓ Clean, consistent code patterns — v1.1
+- ✓ Tenant name caching for performance — v1.1
+- ✓ Pagination for large result sets — v1.1
+- ✓ Panels fixed, content scrolls independently — v1.1
+- ✓ Unit tests for Azure client, UI, config — v1.1
+- ✓ Race condition fixes — v1.1
+- ✓ RoleDefinitionId from eligibility response — v1.1
+- ✓ Proper error logging — v1.1
+- ✓ Dead code removed — v1.1
+- ✓ Graceful shutdown handling — v1.1
+- ✓ Credential refresh for long sessions — v1.1
+- ✓ Justification input validation — v1.1
+
+**v1.2 UI Polish & Auth UX:**
+- ✓ Deterministic startup step ordering — v1.2
+- ✓ High-contrast cursor visibility — v1.2
+- ✓ Permission string wrapping at path segments — v1.2
+- ✓ In-app browser authentication — v1.2
 
 ### Active
 
-<!-- Current scope — v1.1 Refactor & Reliability milestone -->
+<!-- Next milestone scope -->
 
-**Architecture:**
-- [ ] Remove `az rest` CLI shelling — switch to native REST with `azidentity`
-- [ ] Simplify and clean up codebase using consistent patterns
-
-**Performance:**
-- [ ] Fix slow subscription fetching — cache tenant names, reduce API calls
-- [ ] Add pagination support for users with many roles/groups/subscriptions
-
-**UI:**
-- [ ] Fix scrolling behavior — panels stay fixed, only content scrolls
-
-**Reliability:**
-- [ ] Add test coverage for Azure client methods
-- [ ] Add test coverage for UI state transitions
-- [ ] Add test coverage for config loading
-- [ ] Fix race condition in parallel goroutines
-- [ ] Fix hardcoded "member" roleDefinitionId for groups
-- [ ] Add proper error logging (no silent swallowing)
-- [ ] Remove dead code (unused spinnerPulse function)
-
-**Robustness:**
-- [ ] Add graceful shutdown handling
-- [ ] Add credential refresh for long sessions
-- [ ] Implement proper input validation on justification
+(None defined — v1.2 milestone complete, planning next milestone)
 
 ### Out of Scope
 
-<!-- Explicit boundaries for this milestone -->
+<!-- Explicit boundaries -->
 
-- New features beyond current functionality — this is refactor only
-- Offline mode / caching of previous data — deferred to future
-- Persistent logging to file — current in-memory is sufficient
-- GUI version — terminal-only
+- Offline mode / caching of previous data — deferred
+- Persistent logging to file — in-memory sufficient
+- GUI version — terminal-only product
+- Device code authentication — blocked by security policies, browser auth used instead
 
 ## Context
 
 **Current state:**
-- Working v0.1.0 with all core features functional
+- Shipped v1.2 with 7,313 LOC Go
 - Architecture: Bubble Tea (Elm architecture) with `internal/ui` and `internal/azure` layers
-- Auth: Currently shells out to `az rest` CLI command, falls back to Azure SDK
-- Performance: Subscription loading is slow due to per-subscription tenant name lookups
-- UI bug: Scrolling in one panel causes all panels to shift position
-- Technical debt: Zero test coverage, large monolithic files, some race conditions
+- Auth: Native azidentity with AzureCLICredential or InteractiveBrowserCredential
+- Performance: Tenant names cached, pagination supported
+- UI: Panels fixed, high-contrast cursor, permission wrapping
+- Test coverage: Azure client HTTP mocking, UI state transitions, config loading
 
-**Codebase analysis:**
-- See `.planning/codebase/` for detailed architecture, structure, and concerns documentation
-- Key files: `internal/ui/model.go` (1150 lines), `internal/ui/views.go` (1519 lines)
-- 15+ items identified in CONCERNS.md requiring attention
+**Tech stack:**
+- Go 1.25+
+- Bubble Tea / Lipgloss for TUI
+- Azure SDK for Go (azcore, azidentity)
 
 ## Constraints
 
 - **Tech stack**: Go with Bubble Tea/Lipgloss — no change
-- **Auth**: Must use Azure CLI credentials (`azidentity.AzureCLICredential`) — users already have `az login`
-- **Compatibility**: Must maintain same keyboard shortcuts and workflow
-- **Dependencies**: Prefer native REST over adding msgraph-sdk-go dependency
+- **Auth**: AzureCLICredential (primary) or InteractiveBrowserCredential (in-app)
+- **Compatibility**: Maintain same keyboard shortcuts and workflow
+- **Dependencies**: Native REST preferred over msgraph-sdk-go
 
 ## Key Decisions
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Native REST over msgraph-sdk-go | Already have azidentity, avoid new dependency, more control | — Pending |
-| Fix all CONCERNS.md items | Technical debt compounds; clean slate for future development | — Pending |
-| Panels fixed, content scrolls | Consistent with standard TUI patterns, less visual noise | — Pending |
+| Native REST over msgraph-sdk-go | Already have azidentity, avoid new dependency, more control | ✓ Good |
+| Fix all CONCERNS.md items | Technical debt compounds; clean slate for future development | ✓ Good |
+| Panels fixed, content scrolls | Consistent with standard TUI patterns, less visual noise | ✓ Good |
+| Browser auth over device code | Device code often blocked by security policies | ✓ Good |
+| High-contrast cursor (white/black) | Maximum visibility on any terminal theme | ✓ Good |
+| Path-segment wrapping for permissions | Readable long strings in detail panel | ✓ Good |
+| ANSI clear screen for auth states | Clean full-screen rendering during auth | ✓ Good |
 
 ---
-*Last updated: 2026-01-16 after initialization*
+*Last updated: 2026-01-16 after v1.2 milestone*
