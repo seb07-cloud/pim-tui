@@ -394,6 +394,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case rolesLoadedMsg:
 		m.roles = msg.roles
 		m.rolesLoaded = true
+		// Clamp scroll offset if list got shorter
+		if m.rolesScrollOffset >= len(m.roles) && len(m.roles) > 0 {
+			m.rolesScrollOffset = len(m.roles) - 1
+		} else if len(m.roles) == 0 {
+			m.rolesScrollOffset = 0
+		}
 		m.log(LogInfo, "Loaded %d eligible roles", len(m.roles))
 		m.checkLoadingComplete()
 		return m, nil
@@ -401,6 +407,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case groupsLoadedMsg:
 		m.groups = msg.groups
 		m.groupsLoaded = true
+		// Clamp scroll offset if list got shorter
+		if m.groupsScrollOffset >= len(m.groups) && len(m.groups) > 0 {
+			m.groupsScrollOffset = len(m.groups) - 1
+		} else if len(m.groups) == 0 {
+			m.groupsScrollOffset = 0
+		}
 		m.log(LogInfo, "Loaded %d eligible groups", len(m.groups))
 		m.checkLoadingComplete()
 		return m, nil
@@ -415,6 +427,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m.lighthouse[i].DisplayName < m.lighthouse[j].DisplayName
 		})
+		// Clamp scroll offset if list got shorter
+		if m.lightScrollOffset >= len(m.lighthouse) && len(m.lighthouse) > 0 {
+			m.lightScrollOffset = len(m.lighthouse) - 1
+		} else if len(m.lighthouse) == 0 {
+			m.lightScrollOffset = 0
+		}
 		// Count total eligible roles across all subscriptions
 		totalRoles := 0
 		for _, sub := range m.lighthouse {
@@ -649,6 +667,7 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.subRoleFocus = false
 			return m, nil
 		}
+		// Switch tabs - scroll offsets preserved independently per panel
 		if m.activeTab > TabRoles {
 			m.activeTab--
 			m.subRoleFocus = false
@@ -663,6 +682,7 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 		}
+		// Switch tabs - scroll offsets preserved independently per panel
 		if m.activeTab < TabSubscriptions {
 			m.activeTab++
 			m.subRoleFocus = false
@@ -679,7 +699,8 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 		}
-		m.activeTab = (m.activeTab + 1) % 3 // Cycle through 3 tabs
+		// Cycle tabs - scroll offsets preserved independently per panel
+		m.activeTab = (m.activeTab + 1) % 3
 		m.subRoleFocus = false
 
 	case " ":
