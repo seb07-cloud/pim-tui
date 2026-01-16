@@ -3,6 +3,7 @@ package ui
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -11,8 +12,8 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/sebsebseb1982/pim-tui/internal/azure"
-	"github.com/sebsebseb1982/pim-tui/internal/config"
+	"github.com/seb07-cloud/pim-tui/internal/azure"
+	"github.com/seb07-cloud/pim-tui/internal/config"
 )
 
 // Re-export azure types for convenience
@@ -67,6 +68,13 @@ type ActivationHistoryEntry struct {
 	Success       bool
 }
 
+// SubscriptionRoleActivation wraps subscription info with the role for activation
+type SubscriptionRoleActivation struct {
+	SubscriptionID   string
+	SubscriptionName string
+	Role             azure.EligibleAzureRole
+}
+
 type State int
 
 const (
@@ -99,20 +107,29 @@ type Model struct {
 	userEmail       string
 
 	// UI state
-	activeTab Tab
-	state     State
-	rolesCursor    int
-	groupsCursor   int
-	lightCursor    int
-	selectedRoles  map[int]bool
-	selectedGroups map[int]bool
-	selectedLight  map[int]bool
+	activeTab        Tab
+	state            State
+	rolesCursor      int
+	groupsCursor     int
+	lightCursor      int
+	subRoleCursor    int  // Cursor for navigating roles within a subscription
+	subRoleFocus     bool // True when focus is on role list in detail panel
+	selectedRoles    map[int]bool
+	selectedGroups   map[int]bool
+	selectedLight    map[int]bool
+	selectedSubRoles map[string]map[int]bool // subscription ID -> role index -> selected
+
+	// Scroll offsets - independent per panel, preserved across tab switches
+	rolesScrollOffset  int // Scroll offset for roles list (index of first visible item)
+	groupsScrollOffset int // Scroll offset for groups list
+	lightScrollOffset  int // Scroll offset for lighthouse/subscriptions list
 
 	// Loading state
-	loading        bool
-	loadingMessage string
-	rolesLoaded    bool
-	groupsLoaded   bool
+	loading          bool
+	loadingMessage   string
+	rolesLoaded      bool
+	groupsLoaded     bool
+	lighthouseLoaded bool
 
 	// Duration
 	duration      time.Duration
@@ -159,9 +176,12 @@ type userInfoLoadedMsg struct {
 }
 type rolesLoadedMsg struct{ roles []azure.Role }
 type groupsLoadedMsg struct{ groups []azure.Group }
-type lighthouseLoadedMsg struct{ subs []azure.LighthouseSubscription }
+type lighthouseLoadedMsg struct {
+	subs []azure.LighthouseSubscription
+}
 type activationDoneMsg struct{ err error }
 type deactivationDoneMsg struct{ err error }
+type delayedRefreshMsg struct{} // Triggers a refresh after a delay
 type tickMsg time.Time
 type errMsg struct {
 	err    error
@@ -183,6 +203,7 @@ func NewModel(cfg config.Config, version string) Model {
 		selectedRoles:      make(map[int]bool),
 		selectedGroups:     make(map[int]bool),
 		selectedLight:      make(map[int]bool),
+		selectedSubRoles:   make(map[string]map[int]bool),
 		duration:           time.Duration(cfg.DefaultDuration) * time.Hour,
 		durationIndex:      indexOf(cfg.DurationPresets, cfg.DefaultDuration),
 		logLevel:           parseLogLevel(cfg.LogLevel),
@@ -194,6 +215,10 @@ func NewModel(cfg config.Config, version string) Model {
 		state:              StateLoading,
 		loading:            true,
 		loadingMessage:     "Authenticating with Azure...",
+		// Scroll offsets initialized to 0 (top of list)
+		rolesScrollOffset:  0,
+		groupsScrollOffset: 0,
+		lightScrollOffset:  0,
 	}
 }
 
@@ -316,6 +341,13 @@ func tickCmd() tea.Cmd {
 	})
 }
 
+// delayedRefreshCmd waits for a specified duration then triggers a refresh
+func delayedRefreshCmd(delay time.Duration) tea.Cmd {
+	return tea.Tick(delay, func(t time.Time) tea.Msg {
+		return delayedRefreshMsg{}
+	})
+}
+
 func (m *Model) log(level LogLevel, format string, args ...interface{}) {
 	entry := LogEntry{
 		Time:    time.Now(),
@@ -371,23 +403,37 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.groupsLoaded = true
 		m.log(LogInfo, "Loaded %d eligible groups", len(m.groups))
 		m.checkLoadingComplete()
-		// Load subscriptions (lighthouse) after groups are available
-		return m, loadLighthouseCmd(m.client, m.groups)
+		return m, nil
 
 	case lighthouseLoadedMsg:
 		m.lighthouse = msg.subs
-		m.log(LogInfo, "Loaded %d subscriptions", len(m.lighthouse))
+		m.lighthouseLoaded = true
+		// Sort by tenant name (already populated during load with cache)
+		sort.Slice(m.lighthouse, func(i, j int) bool {
+			if m.lighthouse[i].TenantName != m.lighthouse[j].TenantName {
+				return m.lighthouse[i].TenantName < m.lighthouse[j].TenantName
+			}
+			return m.lighthouse[i].DisplayName < m.lighthouse[j].DisplayName
+		})
+		// Count total eligible roles across all subscriptions
+		totalRoles := 0
+		for _, sub := range m.lighthouse {
+			totalRoles += len(sub.EligibleRoles)
+		}
+		m.log(LogInfo, "Loaded %d subscriptions with %d eligible roles", len(m.lighthouse), totalRoles)
+		m.checkLoadingComplete()
 		return m, nil
 
 	case activationDoneMsg:
 		m.state = StateNormal
 		if msg.err != nil {
 			m.log(LogError, "Activation failed: %v", msg.err)
-		} else {
-			m.log(LogInfo, "Activation completed successfully")
-			m.clearSelections()
+			return m, nil
 		}
-		return m, m.refreshCmd()
+		m.log(LogInfo, "Activation completed successfully")
+		m.clearSelections()
+		// Immediate refresh + delayed refresh after 5s for Azure to process
+		return m, tea.Batch(m.refreshCmd(), delayedRefreshCmd(5*time.Second))
 
 	case deactivationDoneMsg:
 		m.state = StateNormal
@@ -397,11 +443,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			} else {
 				m.log(LogError, "Deactivation failed: %v", msg.err)
 			}
-		} else {
-			m.log(LogInfo, "Deactivation completed successfully")
-			m.clearSelections()
+			return m, nil
 		}
-		return m, m.refreshCmd()
+		m.log(LogInfo, "Deactivation completed successfully")
+		m.clearSelections()
+		// Immediate refresh + delayed refresh after 5s for Azure to process
+		return m, tea.Batch(m.refreshCmd(), delayedRefreshCmd(5*time.Second))
+
+	case delayedRefreshMsg:
+		// Delayed refresh triggered after activation/deactivation
+		if m.client != nil && m.state == StateNormal {
+			m.log(LogDebug, "Post-activation refresh...")
+			return m, m.refreshCmd()
+		}
+		return m, nil
 
 	case tickMsg:
 		// Auto-refresh check (only in normal state)
@@ -428,6 +483,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "groups":
 			m.groupsLoaded = true // Mark as loaded even on error so UI progresses
 			m.checkLoadingComplete()
+		case "lighthouse":
+			m.lighthouseLoaded = true // Mark as loaded even on error so UI progresses
+			m.checkLoadingComplete()
 		case "tenant":
 			m.loading = false
 			m.state = StateError
@@ -439,8 +497,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *Model) checkLoadingComplete() {
-	// Consider loading complete when we have tenant and both roles/groups have loaded
-	if m.tenant != nil && m.rolesLoaded && m.groupsLoaded {
+	// Consider loading complete when we have tenant and all data sources have loaded
+	if m.tenant != nil && m.rolesLoaded && m.groupsLoaded && m.lighthouseLoaded {
 		m.loading = false
 		m.state = StateNormal
 		m.lastRefresh = time.Now()
@@ -448,12 +506,18 @@ func (m *Model) checkLoadingComplete() {
 }
 
 func (m *Model) refreshCmd() tea.Cmd {
-	return tea.Batch(loadRolesCmd(m.client), loadGroupsCmd(m.client))
+	return tea.Batch(
+		loadRolesCmd(m.client),
+		loadGroupsCmd(m.client),
+		loadLighthouseCmd(m.client, nil), // groups not needed for lighthouse API
+	)
 }
 
 func (m *Model) clearSelections() {
 	m.selectedRoles = make(map[int]bool)
 	m.selectedGroups = make(map[int]bool)
+	m.selectedLight = make(map[int]bool)
+	m.selectedSubRoles = make(map[string]map[int]bool)
 }
 
 func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -580,17 +644,43 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.moveCursor(1)
 
 	case "left", "h":
+		// If in subscription role focus, exit back to subscription list
+		if m.activeTab == TabSubscriptions && m.subRoleFocus {
+			m.subRoleFocus = false
+			return m, nil
+		}
 		if m.activeTab > TabRoles {
 			m.activeTab--
+			m.subRoleFocus = false
 		}
 
 	case "right", "l":
+		// If on subscriptions tab with roles available, enter role focus mode
+		if m.activeTab == TabSubscriptions && !m.subRoleFocus {
+			if m.lightCursor < len(m.lighthouse) && len(m.lighthouse[m.lightCursor].EligibleRoles) > 0 {
+				m.subRoleFocus = true
+				m.subRoleCursor = 0
+				return m, nil
+			}
+		}
 		if m.activeTab < TabSubscriptions {
 			m.activeTab++
+			m.subRoleFocus = false
 		}
 
 	case "tab":
+		// If on subscriptions tab, toggle between list and role detail
+		if m.activeTab == TabSubscriptions {
+			if m.lightCursor < len(m.lighthouse) && len(m.lighthouse[m.lightCursor].EligibleRoles) > 0 {
+				m.subRoleFocus = !m.subRoleFocus
+				if m.subRoleFocus {
+					m.subRoleCursor = 0
+				}
+				return m, nil
+			}
+		}
 		m.activeTab = (m.activeTab + 1) % 3 // Cycle through 3 tabs
+		m.subRoleFocus = false
 
 	case " ":
 		m.toggleSelection()
@@ -598,7 +688,23 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "enter":
 		return m.initiateActivation()
 
-	case "x", "delete", "backspace":
+	case "x", "delete":
+		return m.initiateDeactivation()
+
+	case "backspace":
+		// In subscriptions tab with active search, backspace removes last char
+		if m.activeTab == TabSubscriptions && m.searchQuery != "" {
+			m.searchQuery = m.searchQuery[:len(m.searchQuery)-1]
+			m.searchInput.SetValue(m.searchQuery)
+			m.searchActive = m.searchQuery != ""
+			// Reset cursor to first visible item
+			visibleIndices := m.getVisibleSubscriptionIndices()
+			if len(visibleIndices) > 0 {
+				m.lightCursor = visibleIndices[0]
+			}
+			return m, nil
+		}
+		// Otherwise, treat as deactivation
 		return m.initiateDeactivation()
 
 	case "r", "R":
@@ -640,6 +746,26 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.searchActive = false
 			m.searchQuery = ""
 			m.searchInput.SetValue("")
+		}
+
+	default:
+		// Inline search for subscriptions tab - typing filters directly
+		if m.activeTab == TabSubscriptions && !m.subRoleFocus {
+			// Only handle printable characters (letters, numbers, spaces)
+			if len(msg.String()) == 1 {
+				char := msg.String()[0]
+				if (char >= 'a' && char <= 'z') || (char >= 'A' && char <= 'Z') ||
+					(char >= '0' && char <= '9') || char == ' ' || char == '-' || char == '_' {
+					m.searchQuery += msg.String()
+					m.searchInput.SetValue(m.searchQuery)
+					m.searchActive = true
+					// Reset cursor to first visible item when search changes
+					visibleIndices := m.getVisibleSubscriptionIndices()
+					if len(visibleIndices) > 0 {
+						m.lightCursor = visibleIndices[0]
+					}
+				}
+			}
 		}
 	}
 
@@ -714,21 +840,174 @@ func clampCursor(cursor, delta, length int) int {
 	return cursor
 }
 
+// getVisibleSubscriptionIndices returns indices of subscriptions that match the current search filter
+func (m *Model) getVisibleSubscriptionIndices() []int {
+	indices := make([]int, 0, len(m.lighthouse))
+	for i, sub := range m.lighthouse {
+		if m.searchActive && m.searchQuery != "" {
+			query := strings.ToLower(m.searchQuery)
+			// Search in subscription name, tenant name, and role names
+			match := strings.Contains(strings.ToLower(sub.DisplayName), query) ||
+				strings.Contains(strings.ToLower(sub.TenantName), query)
+			if !match {
+				for _, role := range sub.EligibleRoles {
+					if strings.Contains(strings.ToLower(role.RoleDefinitionName), query) {
+						match = true
+						break
+					}
+				}
+			}
+			if !match {
+				continue
+			}
+		}
+		indices = append(indices, i)
+	}
+	return indices
+}
+
+// getCurrentSubscription returns the subscription that should be displayed in the detail pane
+func (m *Model) getCurrentSubscription() *azure.LighthouseSubscription {
+	if len(m.lighthouse) == 0 {
+		return nil
+	}
+	visibleIndices := m.getVisibleSubscriptionIndices()
+	if len(visibleIndices) == 0 {
+		return nil
+	}
+	// Find cursor position in visible list, default to first visible if cursor is on hidden item
+	for _, idx := range visibleIndices {
+		if idx == m.lightCursor {
+			return &m.lighthouse[idx]
+		}
+	}
+	// Cursor is on a hidden item, return first visible
+	return &m.lighthouse[visibleIndices[0]]
+}
+
 func (m *Model) moveCursor(delta int) {
+	// Calculate approximate display height for scroll adjustment
+	// Panel height is m.height - 25 (header, tabs, logs, status), minus 3 for panel chrome
+	displayHeight := m.height - 28
+	if displayHeight < 5 {
+		displayHeight = 5 // Minimum reasonable height
+	}
+
 	switch m.activeTab {
 	case TabSubscriptions:
-		m.lightCursor = clampCursor(m.lightCursor, delta, len(m.lighthouse))
+		if m.subRoleFocus {
+			// Navigate roles within current subscription
+			sub := m.getCurrentSubscription()
+			if sub != nil {
+				m.subRoleCursor = clampCursor(m.subRoleCursor, delta, len(sub.EligibleRoles))
+			}
+		} else {
+			// Navigate through visible subscriptions only
+			visibleIndices := m.getVisibleSubscriptionIndices()
+			if len(visibleIndices) == 0 {
+				return
+			}
+			// Find current position in visible list
+			currentVisibleIdx := 0
+			for idx, i := range visibleIndices {
+				if i == m.lightCursor {
+					currentVisibleIdx = idx
+					break
+				}
+			}
+			// Move within visible list
+			newVisibleIdx := clampCursor(currentVisibleIdx, delta, len(visibleIndices))
+			oldCursor := m.lightCursor
+			m.lightCursor = visibleIndices[newVisibleIdx]
+			// Reset role cursor when changing subscriptions
+			if oldCursor != m.lightCursor {
+				m.subRoleCursor = 0
+			}
+			// Adjust scroll offset to keep cursor visible
+			m.lightScrollOffset = m.adjustScrollOffset(newVisibleIdx, m.lightScrollOffset, len(visibleIndices), displayHeight)
+		}
 	case TabRoles:
 		m.rolesCursor = clampCursor(m.rolesCursor, delta, len(m.roles))
+		// Adjust scroll offset to keep cursor visible
+		m.rolesScrollOffset = m.adjustScrollOffset(m.rolesCursor, m.rolesScrollOffset, len(m.roles), displayHeight)
 	case TabGroups:
 		m.groupsCursor = clampCursor(m.groupsCursor, delta, len(m.groups))
+		// Adjust scroll offset to keep cursor visible
+		m.groupsScrollOffset = m.adjustScrollOffset(m.groupsCursor, m.groupsScrollOffset, len(m.groups), displayHeight)
 	}
+}
+
+// adjustScrollOffset adjusts scroll offset to keep cursor visible within display window
+func (m *Model) adjustScrollOffset(cursor, currentOffset, listLen, displayHeight int) int {
+	if listLen <= displayHeight {
+		// List fits in window, no scrolling needed
+		return 0
+	}
+
+	// Ensure offset is valid
+	offset := currentOffset
+	maxOffset := listLen - displayHeight
+	if offset > maxOffset {
+		offset = maxOffset
+	}
+	if offset < 0 {
+		offset = 0
+	}
+
+	// If cursor is above visible window, scroll up
+	if cursor < offset {
+		offset = cursor
+	}
+
+	// If cursor is below visible window, scroll down
+	if cursor >= offset+displayHeight {
+		offset = cursor - displayHeight + 1
+	}
+
+	return offset
 }
 
 func (m *Model) toggleSelection() {
 	switch m.activeTab {
 	case TabSubscriptions:
-		m.selectedLight[m.lightCursor] = !m.selectedLight[m.lightCursor]
+		if m.subRoleFocus {
+			// Toggle selection for a specific role within the subscription
+			if m.lightCursor < len(m.lighthouse) {
+				sub := m.lighthouse[m.lightCursor]
+				if m.subRoleCursor < len(sub.EligibleRoles) {
+					if m.selectedSubRoles[sub.ID] == nil {
+						m.selectedSubRoles[sub.ID] = make(map[int]bool)
+					}
+					m.selectedSubRoles[sub.ID][m.subRoleCursor] = !m.selectedSubRoles[sub.ID][m.subRoleCursor]
+					if !m.selectedSubRoles[sub.ID][m.subRoleCursor] {
+						delete(m.selectedSubRoles[sub.ID], m.subRoleCursor)
+					}
+				}
+			}
+		} else {
+			// Toggle all roles for the subscription
+			if m.lightCursor < len(m.lighthouse) {
+				sub := m.lighthouse[m.lightCursor]
+				// Check if any roles are currently selected
+				anySelected := false
+				if m.selectedSubRoles[sub.ID] != nil {
+					for range m.selectedSubRoles[sub.ID] {
+						anySelected = true
+						break
+					}
+				}
+				if anySelected {
+					// Deselect all
+					delete(m.selectedSubRoles, sub.ID)
+				} else {
+					// Select all roles
+					m.selectedSubRoles[sub.ID] = make(map[int]bool)
+					for i := range sub.EligibleRoles {
+						m.selectedSubRoles[sub.ID][i] = true
+					}
+				}
+			}
+		}
 	case TabRoles:
 		m.selectedRoles[m.rolesCursor] = !m.selectedRoles[m.rolesCursor]
 	case TabGroups:
@@ -742,9 +1021,22 @@ func (m *Model) initiateActivation() (tea.Model, tea.Cmd) {
 
 	switch m.activeTab {
 	case TabSubscriptions:
-		for idx := range m.selectedLight {
-			if idx < len(m.lighthouse) {
-				m.pendingActivations = append(m.pendingActivations, m.lighthouse[idx])
+		// Collect selected roles from subscriptions
+		for subID, roleSelections := range m.selectedSubRoles {
+			// Find the subscription
+			for _, sub := range m.lighthouse {
+				if sub.ID == subID {
+					for roleIdx := range roleSelections {
+						if roleIdx < len(sub.EligibleRoles) {
+							m.pendingActivations = append(m.pendingActivations, SubscriptionRoleActivation{
+								SubscriptionID:   sub.ID,
+								SubscriptionName: sub.DisplayName,
+								Role:             sub.EligibleRoles[roleIdx],
+							})
+						}
+					}
+					break
+				}
 			}
 		}
 	case TabRoles:
@@ -791,6 +1083,9 @@ func (m *Model) startActivation() (tea.Model, tea.Cmd) {
 		case azure.Group:
 			entry.Type = "group"
 			entry.Name = v.DisplayName
+		case SubscriptionRoleActivation:
+			entry.Type = "azure-role"
+			entry.Name = fmt.Sprintf("%s on %s", v.Role.RoleDefinitionName, v.SubscriptionName)
 		}
 		m.activationHistory = append(m.activationHistory, entry)
 	}
@@ -805,6 +1100,10 @@ func (m *Model) startActivation() (tea.Model, tea.Cmd) {
 				}
 			case azure.Group:
 				if err := client.ActivateGroup(ctx, v.ID, justification, duration); err != nil {
+					return activationDoneMsg{err}
+				}
+			case SubscriptionRoleActivation:
+				if err := client.ActivateAzureRole(ctx, v.Role.Scope, v.Role.RoleDefinitionID, v.Role.RoleEligibilityID, justification, duration); err != nil {
 					return activationDoneMsg{err}
 				}
 			}
@@ -831,10 +1130,21 @@ func (m *Model) initiateDeactivation() (tea.Model, tea.Cmd) {
 			}
 		}
 	case TabSubscriptions:
-		// Lighthouse subscriptions can also be deactivated if active
-		for idx := range m.selectedLight {
-			if idx < len(m.lighthouse) && m.lighthouse[idx].Status.IsActive() {
-				m.pendingDeactivations = append(m.pendingDeactivations, m.lighthouse[idx])
+		// Collect selected active roles from subscriptions
+		for subID, roleSelections := range m.selectedSubRoles {
+			for _, sub := range m.lighthouse {
+				if sub.ID == subID {
+					for roleIdx := range roleSelections {
+						if roleIdx < len(sub.EligibleRoles) && sub.EligibleRoles[roleIdx].Status.IsActive() {
+							m.pendingDeactivations = append(m.pendingDeactivations, SubscriptionRoleActivation{
+								SubscriptionID:   sub.ID,
+								SubscriptionName: sub.DisplayName,
+								Role:             sub.EligibleRoles[roleIdx],
+							})
+						}
+					}
+					break
+				}
 			}
 		}
 	}
@@ -863,6 +1173,10 @@ func (m *Model) startDeactivation() (tea.Model, tea.Cmd) {
 				}
 			case azure.Group:
 				if err := client.DeactivateGroup(ctx, v.ID); err != nil {
+					return deactivationDoneMsg{err}
+				}
+			case SubscriptionRoleActivation:
+				if err := client.DeactivateAzureRole(ctx, v.Role.Scope, v.Role.RoleDefinitionID); err != nil {
 					return deactivationDoneMsg{err}
 				}
 			}
