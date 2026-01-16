@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/url"
 	"sync"
 	"time"
@@ -85,7 +84,7 @@ func (c *Client) GetEligibleGroups(ctx context.Context) ([]Group, error) {
 			defer wg.Done()
 			name, err := c.getGroupName(ctx, id)
 			if err != nil {
-				log.Printf("[groups] failed to get group name for %s: %v", id, err)
+				// Silently skip - group name is optional for display
 				return
 			}
 			if name != "" {

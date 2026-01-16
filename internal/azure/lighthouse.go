@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"net/url"
 	"sort"
@@ -288,7 +287,7 @@ func (c *Client) GetLighthouseSubscriptions(ctx context.Context, groups []Group)
 			defer wg.Done()
 			details, err := c.getSubscriptionDetails(ctx, id)
 			if err != nil {
-				log.Printf("[lighthouse] failed to get subscription details for %s: %v", id, err)
+				// Silently skip - subscription details are optional for display
 				return
 			}
 			tenantID := details.HomeTenantID
@@ -319,7 +318,7 @@ func (c *Client) GetLighthouseSubscriptions(ctx context.Context, groups []Group)
 			defer wg.Done()
 			name, err := c.getTenantNameByID(ctx, tid)
 			if err != nil {
-				log.Printf("[lighthouse] failed to get tenant name for %s: %v", tid, err)
+				// Silently skip - tenant name is optional for display
 				return
 			}
 			if name != "" {
@@ -331,8 +330,7 @@ func (c *Client) GetLighthouseSubscriptions(ctx context.Context, groups []Group)
 	}
 	wg.Wait()
 
-	// Debug: Log tenant cache efficiency
-	log.Printf("[lighthouse] Fetched names for %d unique tenants (from %d subscriptions)", len(uniqueTenants), len(subMap))
+	// Tenant cache populated - names applied in phase 4
 
 	// Phase 4: Apply cached tenant info to subscriptions
 	for subID, tenantID := range subTenantMap {
@@ -351,13 +349,9 @@ func (c *Client) GetLighthouseSubscriptions(ctx context.Context, groups []Group)
 	activeURL := activeBaseURL + "?" + activeParams.Encode()
 
 	activeData, activeErr := c.armRequest(ctx, "GET", activeURL)
-	if activeErr != nil {
-		log.Printf("[lighthouse] active assignments query failed: %v", activeErr)
-	} else {
+	if activeErr == nil {
 		var activeResult roleAssignmentResponse
-		if jsonErr := json.Unmarshal(activeData, &activeResult); jsonErr != nil {
-			log.Printf("[lighthouse] failed to parse active assignments: %v", jsonErr)
-		} else {
+		if jsonErr := json.Unmarshal(activeData, &activeResult); jsonErr == nil {
 			// Build a map of active assignments: scope+roleDefinitionId -> endDateTime
 			activeMap := make(map[string]time.Time)
 			for _, a := range activeResult.Value {

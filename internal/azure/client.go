@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -52,6 +53,18 @@ func NewClient() (*Client, error) {
 // Opens the default browser for the user to authenticate with Azure.
 // Returns a new Client on success, or error on failure/timeout.
 func AuthenticateWithBrowser(ctx context.Context) (*Client, error) {
+	// Suppress stderr during browser launch to avoid WSL warnings corrupting TUI
+	// The browser launcher may print diagnostic messages that interfere with Bubble Tea
+	origStderr := os.Stderr
+	devNull, _ := os.Open(os.DevNull)
+	if devNull != nil {
+		os.Stderr = devNull
+		defer func() {
+			os.Stderr = origStderr
+			devNull.Close()
+		}()
+	}
+
 	// Create interactive browser credential with default options
 	// Using nil options to use defaults (multi-tenant support)
 	cred, err := azidentity.NewInteractiveBrowserCredential(nil)
