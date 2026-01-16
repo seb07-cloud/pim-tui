@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-01-16)
 
 **Core value:** Fast, reliable role activation without leaving the terminal
-**Current focus:** Phase 3 complete (performance optimization), ready for Phase 4
+**Current focus:** Phase 4 in progress (UI scrolling fix)
 
 ## Current Position
 
-Phase: 3 of 7 (Performance Optimization)
+Phase: 4 of 7 (UI Scrolling Fix)
 Plan: 1 of 1 in current phase
-Status: Phase complete
-Last activity: 2026-01-16 - Completed 03-01-PLAN.md (performance optimization)
+Status: In progress - awaiting human verification (Task 4)
+Last activity: 2026-01-16 - Executing 04-01-PLAN.md (Tasks 1-3 complete)
 
-Progress: █████░░░░░ 43%
+Progress: ██████░░░░ 50%
 
 ## Performance Metrics
 
@@ -53,6 +53,7 @@ Recent decisions affecting current work:
 - renderExpiryLine removed as dead code - inline expiry logic is sufficient
 - Tenant caching: Separate fetch phases for parallel efficiency, then cache unique tenant names
 - Pagination: In-function @odata.nextLink loops rather than centralized helper
+- Independent scroll offsets per panel with stored position (04-01)
 
 ### Pending Todos
 
@@ -60,10 +61,10 @@ None yet.
 
 ### Blockers/Concerns
 
-None - Phase 3 complete with performance optimizations. Verification score 4/4.
+Awaiting human verification of scroll behavior in 04-01-PLAN.md Task 4.
 
 ## Session Continuity
 
-Last session: 2026-01-16T06:40:46Z
-Stopped at: Completed 03-01-PLAN.md (Phase 3 performance optimization complete)
+Last session: 2026-01-16T06:50:00Z
+Stopped at: 04-01-PLAN.md Task 4 (checkpoint:human-verify)
 Resume file: None
