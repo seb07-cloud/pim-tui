@@ -7,8 +7,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os/exec"
-	"strings"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -26,45 +24,27 @@ const (
 
 type Client struct {
 	cred       azcore.TokenCredential
-	pimCred    azcore.TokenCredential // Cached credential for PIM API
+	pimCred    azcore.TokenCredential // Credential for PIM API
 	httpClient *http.Client
 	userID     string
 	tenant     *Tenant // Cached tenant info
-	useAzRest  bool    // Use 'az rest' command instead of HTTP client
 }
 
-// NewClient creates a new Azure client
-// It tries 'az rest' first (which handles Graph API auth properly), then falls back to SDK
+// NewClient creates a new Azure client using Azure CLI credentials
 func NewClient() (*Client, error) {
-	// Test if 'az rest' works for Graph API calls
-	// 'az rest' automatically handles token acquisition with proper scopes
-	cmd := exec.Command("az", "rest", "--method", "GET", "--url", "https://graph.microsoft.com/v1.0/me?$select=id", "--query", "id", "-o", "tsv")
-	if output, err := cmd.Output(); err == nil && strings.TrimSpace(string(output)) != "" {
-		return &Client{
-			httpClient: &http.Client{Timeout: 30 * time.Second},
-			useAzRest:  true,
-		}, nil
-	}
-
-	// Fall back to DefaultAzureCredential
-	cred, err := azidentity.NewDefaultAzureCredential(nil)
+	cred, err := azidentity.NewAzureCLICredential(nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create credential: %w", err)
+		return nil, fmt.Errorf("failed to create Azure CLI credential: %w", err)
 	}
 
 	return &Client{
 		cred:       cred,
+		pimCred:    cred, // Same credential works for all scopes
 		httpClient: &http.Client{Timeout: 30 * time.Second},
-		useAzRest:  false,
 	}, nil
 }
 
 func (c *Client) graphRequest(ctx context.Context, method, url string, body interface{}) ([]byte, error) {
-	if c.useAzRest {
-		return c.azRestRequest(method, url, body)
-	}
-
-	// Use SDK credential
 	token, err := c.cred.GetToken(ctx, policy.TokenRequestOptions{
 		Scopes: []string{"https://graph.microsoft.com/.default"},
 	})
@@ -81,68 +61,56 @@ func (c *Client) graphRequest(ctx context.Context, method, url string, body inte
 		reqBody = bytes.NewReader(jsonBody)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, method, url, reqBody)
-	if err != nil {
-		return nil, err
-	}
+	// Retry with exponential backoff for rate limiting
+	maxRetries := 3
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		if attempt > 0 {
+			// Exponential backoff: 1s, 2s, 4s
+			time.Sleep(time.Duration(1<<attempt) * time.Second)
+			// Reset body reader for retry
+			if body != nil {
+				jsonBody, _ := json.Marshal(body)
+				reqBody = bytes.NewReader(jsonBody)
+			}
+		}
 
-	req.Header.Set("Authorization", "Bearer "+token.Token)
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	if resp.StatusCode >= 400 {
-		return nil, fmt.Errorf("API error %d: %s", resp.StatusCode, string(respBody))
-	}
-
-	return respBody, nil
-}
-
-// azRestRequest uses 'az rest' command which handles Graph API auth properly
-func (c *Client) azRestRequest(method, url string, body interface{}) ([]byte, error) {
-	args := []string{"rest", "--method", method, "--url", url}
-
-	if body != nil {
-		jsonBody, err := json.Marshal(body)
+		req, err := http.NewRequestWithContext(ctx, method, url, reqBody)
 		if err != nil {
 			return nil, err
 		}
-		args = append(args, "--body", string(jsonBody))
-	}
 
-	cmd := exec.Command("az", args...)
-	output, err := cmd.Output()
-	if err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok {
-			return nil, fmt.Errorf("az rest failed: %s", string(exitErr.Stderr))
+		req.Header.Set("Authorization", "Bearer "+token.Token)
+		req.Header.Set("Content-Type", "application/json")
+
+		resp, err := c.httpClient.Do(req)
+		if err != nil {
+			return nil, err
 		}
-		return nil, fmt.Errorf("az rest failed: %w", err)
+
+		respBody, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if err != nil {
+			return nil, err
+		}
+
+		// Retry on 429 Too Many Requests
+		if resp.StatusCode == 429 && attempt < maxRetries {
+			continue
+		}
+
+		if resp.StatusCode >= 400 {
+			return nil, fmt.Errorf("API error %d: %s", resp.StatusCode, string(respBody))
+		}
+
+		return respBody, nil
 	}
 
-	return output, nil
+	return nil, fmt.Errorf("Graph API request failed after %d retries", maxRetries)
 }
 
 // pimRequest makes requests to the PIM Governance API (api.azrbac.mspim.azure.com)
 // This API uses the same token as ARM and works with Azure CLI credentials
 func (c *Client) pimRequest(ctx context.Context, method, url string, body interface{}) ([]byte, error) {
-	// Lazily initialize PIM credential (cached for all subsequent calls)
-	if c.pimCred == nil {
-		cred, err := azidentity.NewAzureCLICredential(nil)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create CLI credential: %w", err)
-		}
-		c.pimCred = cred
-	}
-
 	token, err := c.pimCred.GetToken(ctx, policy.TokenRequestOptions{
 		Scopes: []string{"https://api.azrbac.mspim.azure.com/.default"},
 	})
@@ -159,30 +127,51 @@ func (c *Client) pimRequest(ctx context.Context, method, url string, body interf
 		reqBody = bytes.NewReader(jsonBody)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, method, url, reqBody)
-	if err != nil {
-		return nil, err
+	// Retry with exponential backoff for rate limiting
+	maxRetries := 3
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		if attempt > 0 {
+			// Exponential backoff: 1s, 2s, 4s
+			time.Sleep(time.Duration(1<<attempt) * time.Second)
+			// Reset body reader for retry
+			if body != nil {
+				jsonBody, _ := json.Marshal(body)
+				reqBody = bytes.NewReader(jsonBody)
+			}
+		}
+
+		req, err := http.NewRequestWithContext(ctx, method, url, reqBody)
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("Authorization", "Bearer "+token.Token)
+		req.Header.Set("Content-Type", "application/json")
+
+		resp, err := c.httpClient.Do(req)
+		if err != nil {
+			return nil, err
+		}
+
+		respBody, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if err != nil {
+			return nil, err
+		}
+
+		// Retry on 429 Too Many Requests
+		if resp.StatusCode == 429 && attempt < maxRetries {
+			continue
+		}
+
+		if resp.StatusCode >= 400 {
+			return nil, fmt.Errorf("PIM API error %d: %s", resp.StatusCode, string(respBody))
+		}
+
+		return respBody, nil
 	}
 
-	req.Header.Set("Authorization", "Bearer "+token.Token)
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	if resp.StatusCode >= 400 {
-		return nil, fmt.Errorf("PIM API error %d: %s", resp.StatusCode, string(respBody))
-	}
-
-	return respBody, nil
+	return nil, fmt.Errorf("PIM API request failed after %d retries", maxRetries)
 }
 
 func (c *Client) GetCurrentUser(ctx context.Context) (string, error) {
