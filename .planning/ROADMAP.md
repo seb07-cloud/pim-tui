@@ -32,12 +32,13 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. All ARM API calls use direct HTTP with Authorization header
   4. No `az rest` or `exec.Command("az")` calls exist in codebase
   5. All existing functionality works identically
-**Research**: Likely (external API)
-**Research topics**: Azure Graph API endpoints for PIM, ARM API for RBAC, azidentity token acquisition patterns
-**Plans**: TBD
+**Research**: Unlikely (internal refactoring, SDK fallback path already exists)
+**Plans**: 3 plans in 2 waves
 
 Plans:
-- [ ] 01-01: TBD
+- [ ] 01-01: Simplify NewClient and remove az rest from client.go
+- [ ] 01-02: Remove az rest from lighthouse.go ARM requests
+- [ ] 01-03: Clean up imports and verify migration
 
 ### Phase 2: Codebase Cleanup
 **Goal**: Clean, consistent code patterns with dead code removed
@@ -136,7 +137,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Native REST Migration | 0/TBD | Not started | - |
+| 1. Native REST Migration | 0/3 | Not started | - |
 | 2. Codebase Cleanup | 0/TBD | Not started | - |
 | 3. Performance Optimization | 0/TBD | Not started | - |
 | 4. UI Scrolling Fix | 0/TBD | Not started | - |
