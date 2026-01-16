@@ -19,7 +19,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 5: Reliability Fixes** - Fix race conditions, role lookups, error logging
 - [x] **Phase 6: Robustness** - Graceful shutdown, credential refresh, input validation
 - [x] **Phase 7: Test Coverage** - Unit tests for Azure client, UI, and config
-- [ ] **Phase 8: UI Polish** - Improve startup display, cursor visibility, permission wrapping
+- [x] **Phase 8: UI Polish** - Improve startup display, cursor visibility, permission wrapping
 - [ ] **Phase 9: In-App Authentication** - Add az login flow directly in the app
 
 ## Phase Details
@@ -147,7 +147,7 @@ Plans:
 **Plans**: 1 plan in 1 wave
 
 Plans:
-- [ ] 08-01: Fix startup ordering, improve cursor visibility, wrap permissions
+- [x] 08-01: Fix startup ordering, improve cursor visibility, wrap permissions
 
 ### Phase 9: In-App Authentication
 **Goal**: Allow users to authenticate from within the app without restarting
@@ -185,7 +185,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 8. UI Polish | 0/1 | Not started | - |
+| 8. UI Polish | 1/1 | Complete | 2026-01-16 |
 | 9. In-App Authentication | 0/? | Not started | - |
 
 ---

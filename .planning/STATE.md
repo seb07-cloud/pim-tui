@@ -5,17 +5,17 @@
 See: .planning/PROJECT.md (updated 2026-01-16)
 
 **Core value:** Fast, reliable role activation without leaving the terminal
-**Current focus:** v1.2 UI Polish & Auth UX - Phase 8 ready for planning
+**Current focus:** v1.2 UI Polish & Auth UX - Phase 8 complete, Phase 9 ready
 
 ## Current Position
 
 Milestone: v1.2 UI Polish & Auth UX
-Phase: 8 of 9 (UI Polish)
-Plan: 0 of ? in current phase - Not planned
-Status: Ready to plan Phase 8
-Last activity: 2026-01-16 - Added phases 8-9 from todos
+Phase: 8 of 9 (UI Polish) - COMPLETE
+Plan: 1 of 1 in current phase
+Status: Phase 8 complete, ready for Phase 9
+Last activity: 2026-01-16 - Completed 08-01-PLAN.md
 
-Progress: ░░░░░░░░░░ 0%
+Progress: ██████████░░░░░░░░░░ 50%
 
 ## Milestones
 
@@ -27,8 +27,8 @@ Progress: ░░░░░░░░░░ 0%
 
 ### v1.2 UI Polish & Auth UX (CURRENT)
 - Phases: 8-9
-- Plans completed: 0
-- Status: Planning
+- Plans completed: 1
+- Status: In Progress
 
 ## Performance Metrics
 
@@ -36,6 +36,11 @@ Progress: ░░░░░░░░░░ 0%
 - Total plans completed: 13
 - Average duration: 4 min
 - Total execution time: 0.82 hours
+
+**Velocity (v1.2):**
+- Plans completed: 1
+- Average duration: 4 min
+- Total execution time: 4 min
 
 **By Phase:**
 
@@ -48,6 +53,7 @@ Progress: ░░░░░░░░░░ 0%
 | 05-reliability-fixes | 1/1 | 3 min | 3 min |
 | 06-robustness | 1/1 | 4 min | 4 min |
 | 07-test-coverage | 3/3 | 9 min | 3 min |
+| 08-ui-polish | 1/1 | 4 min | 4 min |
 
 ## Accumulated Context
 
@@ -79,17 +85,21 @@ Recent decisions affecting current work:
 - Update testing via message injection and state assertion (07-03)
 - httptest.Server + custom RoundTripper for Azure API mocking (07-02)
 - mockCredential for static token in tests (07-02)
+- White background with black text for cursor - maximum visibility on any terminal (08-01)
+- 40-character max width for permission wrapping in detail panel (08-01)
+- Break at / path segments with 4-space indent for continuations (08-01)
 
 ### Roadmap Evolution
 
 - Phases 8-9 added: Todos converted to phases for v1.2 milestone (2026-01-16)
+- Phase 8 completed: UI polish for startup, cursor, permissions (2026-01-16)
 
 ### Pending Todos
 
 0 todos - all converted to roadmap phases:
-- Fix startup step ordering display → Phase 8 (UI Polish)
-- Improve role selection cursor visibility → Phase 8 (UI Polish)
-- Smart wrap long permission strings → Phase 8 (UI Polish)
+- Fix startup step ordering display → Phase 8 (DONE)
+- Improve role selection cursor visibility → Phase 8 (DONE)
+- Smart wrap long permission strings → Phase 8 (DONE)
 - Add in-app az login → Phase 9 (In-App Authentication)
 
 ### Blockers/Concerns
@@ -98,6 +108,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-01-16T09:50:00Z
-Stopped at: Created phases 8-9 from todos
+Last session: 2026-01-16T10:04:00Z
+Stopped at: Completed 08-01-PLAN.md
 Resume file: None
