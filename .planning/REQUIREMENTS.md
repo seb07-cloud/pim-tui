@@ -20,9 +20,9 @@ Requirements for v1.1 Refactor & Reliability milestone. Each maps to roadmap pha
 ### UI
 
 - [x] **UI-01**: Scrolling within a panel keeps all panels fixed in position (only content scrolls)
-- [ ] **UI-02**: Startup steps display in correct order (no race condition in display)
-- [ ] **UI-03**: Selected role/group row is clearly highlighted (white or inverted)
-- [ ] **UI-04**: Long permission strings wrap at path segments with proper indentation
+- [x] **UI-02**: Startup steps display in correct order (no race condition in display)
+- [x] **UI-03**: Selected role/group row is clearly highlighted (white or inverted)
+- [x] **UI-04**: Long permission strings wrap at path segments with proper indentation
 
 ### Testing
 
@@ -81,9 +81,9 @@ Which phases cover which requirements. Updated by create-roadmap.
 | ROB-01 | Phase 6 | Complete |
 | ROB-02 | Phase 6 | Complete |
 | ROB-03 | Phase 6 | Complete |
-| UI-02 | Phase 8 | Pending |
-| UI-03 | Phase 8 | Pending |
-| UI-04 | Phase 8 | Pending |
+| UI-02 | Phase 8 | Complete |
+| UI-03 | Phase 8 | Complete |
+| UI-04 | Phase 8 | Complete |
 
 **Coverage:**
 - v1 requirements: 18 total
