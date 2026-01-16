@@ -9,7 +9,7 @@ Requirements for v1.1 Refactor & Reliability milestone. Each maps to roadmap pha
 
 ### Architecture
 
-- [ ] **ARCH-01**: All Azure API calls use native REST with `azidentity` (no `az rest` CLI shelling)
+- [x] **ARCH-01**: All Azure API calls use native REST with `azidentity` (no `az rest` CLI shelling)
 - [ ] **ARCH-02**: Codebase follows consistent patterns (simplified, cleaned up)
 
 ### Performance
@@ -63,7 +63,7 @@ Which phases cover which requirements. Updated by create-roadmap.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| ARCH-01 | Phase 1 | Pending |
+| ARCH-01 | Phase 1 | Complete |
 | ARCH-02 | Phase 2 | Pending |
 | PERF-01 | Phase 3 | Pending |
 | PERF-02 | Phase 3 | Pending |

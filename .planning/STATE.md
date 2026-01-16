@@ -9,10 +9,10 @@ See: .planning/PROJECT.md (updated 2026-01-16)
 
 ## Current Position
 
-Phase: 1 of 7 (Native REST Migration) COMPLETE
-Plan: 3 of 3 in current phase (all complete)
-Status: Phase 1 complete, ready for Phase 2
-Last activity: 2026-01-16 — Completed 01-03-PLAN.md (cleanup and verification)
+Phase: 2 of 7 (Codebase Cleanup)
+Plan: 0 of 1 in current phase
+Status: Ready to plan
+Last activity: 2026-01-16 — Phase 1 verified and complete
 
 Progress: ███░░░░░░░ 20%
 
@@ -50,7 +50,7 @@ Recent decisions affecting current work:
 
 ### Pending Todos
 
-- Begin Phase 2 planning and execution
+None yet.
 
 ### Blockers/Concerns
 

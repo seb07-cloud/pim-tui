@@ -12,7 +12,7 @@ This roadmap transforms pim-tui from a working v0.1.0 prototype into a productio
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Native REST Migration** - Replace az CLI shelling with native azidentity + REST
+- [x] **Phase 1: Native REST Migration** - Replace az CLI shelling with native azidentity + REST
 - [ ] **Phase 2: Codebase Cleanup** - Remove dead code, establish consistent patterns
 - [ ] **Phase 3: Performance Optimization** - Cache tenant names, add pagination
 - [ ] **Phase 4: UI Scrolling Fix** - Panels fixed, content scrolls independently
@@ -36,9 +36,9 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans**: 3 plans in 2 waves
 
 Plans:
-- [ ] 01-01: Simplify NewClient and remove az rest from client.go
-- [ ] 01-02: Remove az rest from lighthouse.go ARM requests
-- [ ] 01-03: Clean up imports and verify migration
+- [x] 01-01: Simplify NewClient and remove az rest from client.go
+- [x] 01-02: Remove az rest from lighthouse.go ARM requests
+- [x] 01-03: Clean up imports and verify migration
 
 ### Phase 2: Codebase Cleanup
 **Goal**: Clean, consistent code patterns with dead code removed
@@ -137,7 +137,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Native REST Migration | 0/3 | Not started | - |
+| 1. Native REST Migration | 3/3 | Complete | 2026-01-16 |
 | 2. Codebase Cleanup | 0/1 | Not started | - |
 | 3. Performance Optimization | 0/1 | Not started | - |
 | 4. UI Scrolling Fix | 0/1 | Not started | - |
