@@ -88,6 +88,8 @@ const (
 	StateHelp
 	StateSearch
 	StateError
+	StateUnauthenticated  // User needs to authenticate (not an error, a prompt)
+	StateAuthenticating   // Device code auth in progress
 )
 
 type Model struct {
@@ -97,6 +99,10 @@ type Model struct {
 
 	// Version
 	version string
+
+	// Device code authentication
+	deviceCodeMessage string           // Device code message to display during auth
+	authCancelFunc    context.CancelFunc // Cancel function for auth context
 
 	// Data
 	tenant          *azure.Tenant
@@ -188,6 +194,20 @@ type errMsg struct {
 	source string // "roles", "groups", "tenant", etc.
 }
 
+// authRequiredMsg signals that authentication is required (no valid session)
+type authRequiredMsg struct{}
+
+// authCodeMsg carries the device code message for display
+type authCodeMsg struct {
+	message string // The full message with URL and code
+}
+
+// authCompleteMsg signals authentication completed
+type authCompleteMsg struct {
+	client *azure.Client
+	err    error
+}
+
 func NewModel(cfg config.Config, version string) Model {
 	ti := textinput.New()
 	ti.Placeholder = "Enter justification..."
@@ -253,6 +273,10 @@ func initClientCmd() tea.Cmd {
 	return func() tea.Msg {
 		client, err := azure.NewClient()
 		if err != nil {
+			// Check if this is an auth-related error that can be resolved with device code login
+			if isAuthError(err) {
+				return authRequiredMsg{}
+			}
 			return errMsg{fmt.Errorf("authentication failed: %w", err), "auth"}
 		}
 
@@ -262,11 +286,35 @@ func initClientCmd() tea.Cmd {
 
 		_, err = client.GetCurrentUser(ctx)
 		if err != nil {
+			// Check if this is an auth-related error
+			if isAuthError(err) {
+				return authRequiredMsg{}
+			}
 			return errMsg{fmt.Errorf("authentication failed: %w", err), "auth"}
 		}
 
 		return clientReadyMsg{client}
 	}
+}
+
+// isAuthError checks if the error is related to authentication/credentials
+// that could be resolved with device code login
+func isAuthError(err error) bool {
+	if err == nil {
+		return false
+	}
+	errStr := strings.ToLower(err.Error())
+	authKeywords := []string{
+		"credential", "login", "authenticate", "token",
+		"az login", "not logged in", "unauthorized",
+		"failed to get token", "no credential",
+	}
+	for _, keyword := range authKeywords {
+		if strings.Contains(errStr, keyword) {
+			return true
+		}
+	}
+	return false
 }
 
 func loadTenantCmd(client *azure.Client) tea.Cmd {
@@ -348,6 +396,38 @@ func delayedRefreshCmd(delay time.Duration) tea.Cmd {
 	})
 }
 
+// startAuthCmd starts the device code authentication flow.
+// It uses a channel to communicate the device code message back to the UI.
+func startAuthCmd(ctx context.Context) tea.Cmd {
+	// Channel to receive device code message
+	codeChan := make(chan string, 1)
+
+	// Start auth in goroutine
+	authCmd := func() tea.Msg {
+		client, err := azure.AuthenticateWithDeviceCode(ctx, func(message string) error {
+			// Send device code message to channel (non-blocking)
+			select {
+			case codeChan <- message:
+			default:
+			}
+			return nil
+		})
+		return authCompleteMsg{client: client, err: err}
+	}
+
+	// Listen for device code message
+	codeListenerCmd := func() tea.Msg {
+		select {
+		case msg := <-codeChan:
+			return authCodeMsg{message: msg}
+		case <-ctx.Done():
+			return nil
+		}
+	}
+
+	return tea.Batch(authCmd, codeListenerCmd)
+}
+
 func (m *Model) log(level LogLevel, format string, args ...interface{}) {
 	entry := LogEntry{
 		Time:    time.Now(),
@@ -376,6 +456,40 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.client = msg.client
 		m.loading = true
 		m.loadingMessage = "Loading tenant info..."
+		m.log(LogInfo, "Authentication successful")
+		return m, loadTenantCmd(m.client)
+
+	case authRequiredMsg:
+		// No valid Azure CLI session, show friendly login prompt
+		m.loading = false
+		m.state = StateUnauthenticated
+		m.err = nil
+		m.deviceCodeMessage = ""
+		m.log(LogInfo, "Authentication required - press L to login")
+		return m, nil
+
+	case authCodeMsg:
+		// Device code received, display to user
+		m.deviceCodeMessage = msg.message
+		m.log(LogInfo, "Device code received - complete login in browser")
+		return m, nil
+
+	case authCompleteMsg:
+		// Cancel func is no longer needed
+		m.authCancelFunc = nil
+		if msg.err != nil {
+			// Auth failed, go back to unauthenticated state
+			m.state = StateUnauthenticated
+			m.deviceCodeMessage = ""
+			m.log(LogError, "Authentication failed: %v", msg.err)
+			return m, nil
+		}
+		// Auth succeeded, proceed to loading
+		m.client = msg.client
+		m.state = StateLoading
+		m.loading = true
+		m.loadingMessage = "Loading tenant info..."
+		m.deviceCodeMessage = ""
 		m.log(LogInfo, "Authentication successful")
 		return m, loadTenantCmd(m.client)
 
@@ -563,6 +677,47 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.state == StateLoading {
 		if msg.String() == "q" {
 			return m, tea.Quit
+		}
+		return m, nil
+	}
+
+	// In unauthenticated state, allow login or quit
+	if m.state == StateUnauthenticated {
+		switch msg.String() {
+		case "q":
+			return m, tea.Quit
+		case "l", "L":
+			// Start device code authentication flow
+			ctx, cancel := context.WithCancel(context.Background())
+			m.authCancelFunc = cancel
+			m.state = StateAuthenticating
+			m.deviceCodeMessage = ""
+			m.log(LogInfo, "Starting device code authentication...")
+			return m, startAuthCmd(ctx)
+		}
+		return m, nil
+	}
+
+	// In authenticating state, allow quit (which cancels auth)
+	if m.state == StateAuthenticating {
+		switch msg.String() {
+		case "q":
+			// Cancel ongoing auth
+			if m.authCancelFunc != nil {
+				m.authCancelFunc()
+				m.authCancelFunc = nil
+			}
+			return m, tea.Quit
+		case "esc":
+			// Cancel auth and go back to unauthenticated
+			if m.authCancelFunc != nil {
+				m.authCancelFunc()
+				m.authCancelFunc = nil
+			}
+			m.state = StateUnauthenticated
+			m.deviceCodeMessage = ""
+			m.log(LogInfo, "Authentication cancelled")
+			return m, nil
 		}
 		return m, nil
 	}
