@@ -69,17 +69,29 @@ func (m Model) View() string {
 func (m Model) renderLoading() string {
 	spin := spinner(colorActive)
 
-	// Build step indicators with progress
+	// Build step indicators - sequential display with parallel loading after step 2
+	// Steps must complete in order for display, even if parallel loads finish out of order
+	authDone := m.client != nil
+	tenantDone := authDone && m.tenant != nil
+
 	steps := []struct {
-		name   string
-		done   bool
-		active bool
+		name string
+		done bool
 	}{
-		{"Initializing Azure SDK", m.client != nil, m.client == nil},
-		{"Loading tenant info", m.tenant != nil, m.client != nil && m.tenant == nil},
-		{"Loading PIM roles", m.rolesLoaded, m.tenant != nil && !m.rolesLoaded},
-		{"Loading PIM groups", m.groupsLoaded, m.tenant != nil && !m.groupsLoaded},
-		{"Loading subscriptions", m.lighthouseLoaded, m.tenant != nil && !m.lighthouseLoaded},
+		{"Authenticating with Graph API...", authDone},
+		{"Loading Tenant Information", tenantDone},
+		{"Loading PIM roles", tenantDone && m.rolesLoaded},
+		{"Loading PIM groups", tenantDone && m.groupsLoaded},
+		{"Loading Subscriptions", tenantDone && m.lighthouseLoaded},
+	}
+
+	// Determine active step: first incomplete step gets the spinner
+	activeIdx := -1
+	for i, step := range steps {
+		if !step.done {
+			activeIdx = i
+			break
+		}
 	}
 
 	// Count completed steps for progress bar
@@ -97,7 +109,7 @@ func (m Model) renderLoading() string {
 		var style lipgloss.Style
 		if step.done {
 			icon, style = "✓", activeStyle
-		} else if step.active {
+		} else if i == activeIdx {
 			icon, style = spin, highlightBoldStyle
 		} else {
 			icon, style = "○", dimStyle
