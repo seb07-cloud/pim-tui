@@ -14,8 +14,8 @@ Requirements for v1.1 Refactor & Reliability milestone. Each maps to roadmap pha
 
 ### Performance
 
-- [ ] **PERF-01**: Subscription fetching uses tenant name cache (one lookup per tenant, not per subscription)
-- [ ] **PERF-02**: API responses support pagination for large result sets
+- [x] **PERF-01**: Subscription fetching uses tenant name cache (one lookup per tenant, not per subscription)
+- [x] **PERF-02**: API responses support pagination for large result sets
 
 ### UI
 
@@ -65,8 +65,8 @@ Which phases cover which requirements. Updated by create-roadmap.
 |-------------|-------|--------|
 | ARCH-01 | Phase 1 | Complete |
 | ARCH-02 | Phase 2 | Complete |
-| PERF-01 | Phase 3 | Pending |
-| PERF-02 | Phase 3 | Pending |
+| PERF-01 | Phase 3 | Complete |
+| PERF-02 | Phase 3 | Complete |
 | UI-01 | Phase 4 | Pending |
 | TEST-01 | Phase 7 | Pending |
 | TEST-02 | Phase 7 | Pending |
