@@ -100,11 +100,12 @@ func (c *Client) GetEligibleGroups(ctx context.Context) ([]Group, error) {
 		}
 
 		groups = append(groups, Group{
-			ID:          g.ResourceID,
-			DisplayName: displayName,
-			Description: g.RoleDefinition.DisplayName, // "Member" or "Owner"
-			Status:      StatusInactive,
-			MaxDuration: 8 * time.Hour,
+			ID:               g.ResourceID,
+			DisplayName:      displayName,
+			Description:      g.RoleDefinition.DisplayName, // "Member" or "Owner"
+			RoleDefinitionID: g.RoleDefinition.ID,          // "member" or "owner" from API
+			Status:           StatusInactive,
+			MaxDuration:      8 * time.Hour,
 		})
 	}
 
