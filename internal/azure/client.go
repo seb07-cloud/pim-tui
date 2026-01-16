@@ -82,17 +82,19 @@ func AuthenticateWithBrowser(ctx context.Context) (*Client, error) {
 		}()
 	}
 
-	// Create interactive browser credential with default options
-	// Using nil options to use defaults (multi-tenant support)
-	cred, credErr := azidentity.NewInteractiveBrowserCredential(nil)
+	// Create interactive browser credential
+	// Use "organizations" tenant for multi-tenant support
+	cred, credErr := azidentity.NewInteractiveBrowserCredential(&azidentity.InteractiveBrowserCredentialOptions{
+		TenantID: "organizations",
+	})
 	if credErr != nil {
 		return nil, fmt.Errorf("failed to create browser credential: %w", credErr)
 	}
 
 	// Trigger the auth flow by requesting a token
-	// This will open the browser automatically
+	// Use user_impersonation scope for Azure management access
 	_, tokenErr := cred.GetToken(ctx, policy.TokenRequestOptions{
-		Scopes: []string{"https://graph.microsoft.com/.default"},
+		Scopes: []string{"https://management.azure.com/user_impersonation"},
 	})
 	if tokenErr != nil {
 		return nil, fmt.Errorf("browser authentication failed: %w", tokenErr)
