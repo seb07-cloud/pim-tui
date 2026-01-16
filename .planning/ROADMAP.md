@@ -13,7 +13,7 @@ This roadmap transforms pim-tui from a working v0.1.0 prototype into a productio
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Native REST Migration** - Replace az CLI shelling with native azidentity + REST
-- [ ] **Phase 2: Codebase Cleanup** - Remove dead code, establish consistent patterns
+- [x] **Phase 2: Codebase Cleanup** - Remove dead code, establish consistent patterns
 - [ ] **Phase 3: Performance Optimization** - Cache tenant names, add pagination
 - [ ] **Phase 4: UI Scrolling Fix** - Panels fixed, content scrolls independently
 - [ ] **Phase 5: Reliability Fixes** - Fix race conditions, role lookups, error logging
@@ -53,7 +53,8 @@ Plans:
 **Plans**: 1 plan in 1 wave
 
 Plans:
-- [ ] 02-01: Remove dead code and improve error handling consistency
+- [x] 02-01: Remove dead code and improve error handling consistency
+- [x] 02-02: Remove renderExpiryLine dead code (gap closure)
 
 ### Phase 3: Performance Optimization
 **Goal**: Fast subscription loading with tenant caching and pagination support
@@ -138,7 +139,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Native REST Migration | 3/3 | Complete | 2026-01-16 |
-| 2. Codebase Cleanup | 0/1 | Not started | - |
+| 2. Codebase Cleanup | 2/2 | Complete | 2026-01-16 |
 | 3. Performance Optimization | 0/1 | Not started | - |
 | 4. UI Scrolling Fix | 0/1 | Not started | - |
 | 5. Reliability Fixes | 0/1 | Not started | - |

@@ -10,7 +10,7 @@ Requirements for v1.1 Refactor & Reliability milestone. Each maps to roadmap pha
 ### Architecture
 
 - [x] **ARCH-01**: All Azure API calls use native REST with `azidentity` (no `az rest` CLI shelling)
-- [ ] **ARCH-02**: Codebase follows consistent patterns (simplified, cleaned up)
+- [x] **ARCH-02**: Codebase follows consistent patterns (simplified, cleaned up)
 
 ### Performance
 
@@ -32,7 +32,7 @@ Requirements for v1.1 Refactor & Reliability milestone. Each maps to roadmap pha
 - [ ] **REL-01**: Parallel goroutines use proper synchronization (no race conditions)
 - [ ] **REL-02**: Group activation uses actual roleDefinitionId from assignment (not hardcoded "member")
 - [ ] **REL-03**: All errors are logged (no silent swallowing)
-- [ ] **REL-04**: Dead code removed (spinnerPulse function, etc.)
+- [x] **REL-04**: Dead code removed (spinnerPulse function, etc.)
 
 ### Robustness
 
@@ -64,7 +64,7 @@ Which phases cover which requirements. Updated by create-roadmap.
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | ARCH-01 | Phase 1 | Complete |
-| ARCH-02 | Phase 2 | Pending |
+| ARCH-02 | Phase 2 | Complete |
 | PERF-01 | Phase 3 | Pending |
 | PERF-02 | Phase 3 | Pending |
 | UI-01 | Phase 4 | Pending |
@@ -74,7 +74,7 @@ Which phases cover which requirements. Updated by create-roadmap.
 | REL-01 | Phase 5 | Pending |
 | REL-02 | Phase 5 | Pending |
 | REL-03 | Phase 5 | Pending |
-| REL-04 | Phase 2 | Pending |
+| REL-04 | Phase 2 | Complete |
 | ROB-01 | Phase 6 | Pending |
 | ROB-02 | Phase 6 | Pending |
 | ROB-03 | Phase 6 | Pending |
