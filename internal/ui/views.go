@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/sebsebseb1982/pim-tui/internal/azure"
+	"github.com/seb07-cloud/pim-tui/internal/azure"
 )
 
 const asciiLogo = ` ██████╗ ██╗███╗   ███╗    ████████╗██╗   ██╗██╗
@@ -79,6 +79,7 @@ func (m Model) renderLoading() string {
 		{"Loading tenant info", m.tenant != nil, m.client != nil && m.tenant == nil},
 		{"Loading PIM roles", m.rolesLoaded, m.tenant != nil && !m.rolesLoaded},
 		{"Loading PIM groups", m.groupsLoaded, m.tenant != nil && !m.groupsLoaded},
+		{"Loading subscriptions", m.lighthouseLoaded, m.tenant != nil && !m.lighthouseLoaded},
 	}
 
 	// Count completed steps for progress bar
@@ -89,6 +90,7 @@ func (m Model) renderLoading() string {
 		}
 	}
 
+	totalSteps := len(steps)
 	var stepLines []string
 	for i, step := range steps {
 		var icon string
@@ -101,7 +103,7 @@ func (m Model) renderLoading() string {
 			icon, style = "○", dimStyle
 		}
 		// Add step number for clarity
-		stepLines = append(stepLines, style.Render(fmt.Sprintf("  %s [%d/4] %s", icon, i+1, step.name)))
+		stepLines = append(stepLines, style.Render(fmt.Sprintf("  %s [%d/%d] %s", icon, i+1, totalSteps, step.name)))
 	}
 
 	// Build overall progress bar
@@ -324,6 +326,10 @@ func (m Model) renderMainView() string {
 		detailContent = m.renderGroupDetail()
 	case TabSubscriptions:
 		title = "📑 Subscriptions"
+		// Show inline search filter if active
+		if m.searchActive && m.searchQuery != "" {
+			title = fmt.Sprintf("📑 Subscriptions [🔍 %s]", m.searchQuery)
+		}
 		listContent = m.renderSubscriptionsList(max(panelHeight-2, 1))
 		detailContent = m.renderSubscriptionDetail()
 	}
@@ -367,8 +373,12 @@ func (m Model) renderTabBar() string {
 	}
 	activeSubs := 0
 	for _, s := range m.lighthouse {
-		if s.Status.IsActive() {
-			activeSubs++
+		// Count subscription as active if any of its roles are active
+		for _, role := range s.EligibleRoles {
+			if role.Status.IsActive() {
+				activeSubs++
+				break
+			}
 		}
 	}
 
@@ -398,7 +408,7 @@ func (m Model) renderTabBar() string {
 	tabBarWidth := m.width - 6
 	underline := highlightBoldStyle.Render(strings.Repeat("━", tabBarWidth))
 
-	return lipgloss.NewStyle().Width(m.width - 4).Padding(0, 1).Render(
+	return lipgloss.NewStyle().Width(m.width-4).Padding(0, 1).Render(
 		tabs + dimStyle.Render("  ←→/Tab") + "\n" + underline,
 	)
 }
@@ -573,36 +583,89 @@ func (m Model) renderSubscriptionsList(height int) string {
 		)
 	}
 
-	count := len(m.lighthouse)
+	// Filter subscriptions based on search query
+	visibleIndices := make([]int, 0, len(m.lighthouse))
+	for i, sub := range m.lighthouse {
+		if m.searchActive && m.searchQuery != "" {
+			// Search in subscription name, tenant name, and role names
+			query := strings.ToLower(m.searchQuery)
+			match := strings.Contains(strings.ToLower(sub.DisplayName), query) ||
+				strings.Contains(strings.ToLower(sub.TenantName), query)
+			if !match {
+				for _, role := range sub.EligibleRoles {
+					if strings.Contains(strings.ToLower(role.RoleDefinitionName), query) {
+						match = true
+						break
+					}
+				}
+			}
+			if !match {
+				continue
+			}
+		}
+		visibleIndices = append(visibleIndices, i)
+	}
+
+	if len(visibleIndices) == 0 && m.searchActive {
+		return lipgloss.JoinVertical(lipgloss.Center,
+			"",
+			dimStyle.Render("🔍"),
+			dimStyle.Render(fmt.Sprintf("No subscriptions match \"%s\"", m.searchQuery)),
+			dimStyle.Render("Try a different search term"),
+		)
+	}
+
+	// Find cursor position in visible list
+	cursorVisibleIdx := 0
+	for idx, i := range visibleIndices {
+		if i == m.lightCursor {
+			cursorVisibleIdx = idx
+			break
+		}
+	}
+
 	displayHeight := height - 1 // Reserve for scroll indicator
 
 	// Calculate scroll window centered on cursor
 	startIdx := 0
-	if count > displayHeight {
-		startIdx = m.lightCursor - displayHeight/2
+	if len(visibleIndices) > displayHeight {
+		startIdx = cursorVisibleIdx - displayHeight/2
 		if startIdx < 0 {
 			startIdx = 0
 		}
-		if startIdx+displayHeight > count {
-			startIdx = count - displayHeight
+		if startIdx+displayHeight > len(visibleIndices) {
+			startIdx = len(visibleIndices) - displayHeight
 		}
 	}
 
 	var lines []string
-	endIdx := min(startIdx+displayHeight, count)
-	for i := startIdx; i < endIdx; i++ {
-		lines = append(lines, m.renderSubscriptionItem(i, m.lighthouse[i]))
+	endIdx := min(startIdx+displayHeight, len(visibleIndices))
+	lastTenant := ""
+	for _, i := range visibleIndices[startIdx:endIdx] {
+		sub := m.lighthouse[i]
+		// Add tenant header when tenant changes
+		if sub.TenantName != lastTenant && sub.TenantName != "" {
+			if lastTenant != "" {
+				// Add spacing between tenant groups (skip for first)
+				lines = append(lines, "")
+			}
+			// Tenant header with building icon
+			tenantHeader := dimStyle.Bold(true).Render(fmt.Sprintf("🏢 %s", sub.TenantName))
+			lines = append(lines, tenantHeader)
+			lastTenant = sub.TenantName
+		}
+		lines = append(lines, m.renderSubscriptionItem(i, sub))
 	}
 
 	// Add scroll indicator if needed
-	if count > displayHeight {
-		scrollInfo := dimStyle.Render(fmt.Sprintf("  ↕ %d/%d", m.lightCursor+1, count))
-		if startIdx > 0 && endIdx < count {
-			scrollInfo = dimStyle.Render(fmt.Sprintf("  ↑↓ %d/%d", m.lightCursor+1, count))
+	if len(visibleIndices) > displayHeight {
+		scrollInfo := dimStyle.Render(fmt.Sprintf("  ↕ %d/%d", cursorVisibleIdx+1, len(visibleIndices)))
+		if startIdx > 0 && endIdx < len(visibleIndices) {
+			scrollInfo = dimStyle.Render(fmt.Sprintf("  ↑↓ %d/%d", cursorVisibleIdx+1, len(visibleIndices)))
 		} else if startIdx > 0 {
-			scrollInfo = dimStyle.Render(fmt.Sprintf("  ↑ %d/%d", m.lightCursor+1, count))
-		} else if endIdx < count {
-			scrollInfo = dimStyle.Render(fmt.Sprintf("  ↓ %d/%d", m.lightCursor+1, count))
+			scrollInfo = dimStyle.Render(fmt.Sprintf("  ↑ %d/%d", cursorVisibleIdx+1, len(visibleIndices)))
+		} else if endIdx < len(visibleIndices) {
+			scrollInfo = dimStyle.Render(fmt.Sprintf("  ↓ %d/%d", cursorVisibleIdx+1, len(visibleIndices)))
 		}
 		lines = append(lines, scrollInfo)
 	}
@@ -611,21 +674,51 @@ func (m Model) renderSubscriptionsList(height int) string {
 }
 
 func (m Model) renderSubscriptionItem(idx int, sub azure.LighthouseSubscription) string {
-	groupInfo := ""
-	if sub.LinkedGroupName != "" {
-		groupInfo = detailLabelStyle.Render(fmt.Sprintf(" via: %s", sub.LinkedGroupName))
+	// Count selected and active roles for this subscription
+	selectedCount := 0
+	if m.selectedSubRoles[sub.ID] != nil {
+		selectedCount = len(m.selectedSubRoles[sub.ID])
+	}
+	totalRoles := len(sub.EligibleRoles)
+
+	// Count active roles
+	activeCount := 0
+	for _, role := range sub.EligibleRoles {
+		if role.Status.IsActive() {
+			activeCount++
+		}
 	}
 
-	line := fmt.Sprintf("%s %s %s%s", renderCheckbox(m.selectedLight[idx]), statusIcon(sub.Status), truncate(sub.DisplayName, 30), groupInfo)
+	// Determine subscription status based on active roles
+	subStatus := sub.Status
+	if activeCount > 0 {
+		subStatus = azure.StatusActive
+	}
+
+	// Build selection and active indicator
+	var indicator string
+	if selectedCount > 0 {
+		// Show selected count in highlight color
+		indicator = highlightBoldStyle.Render(fmt.Sprintf(" [%d/%d]", selectedCount, totalRoles))
+	} else if activeCount > 0 {
+		// Show active count in green
+		indicator = activeStyle.Render(fmt.Sprintf(" ●%d", activeCount)) + dimStyle.Render(fmt.Sprintf("/%d", totalRoles))
+	} else if totalRoles > 0 {
+		indicator = dimStyle.Render(fmt.Sprintf(" [%d]", totalRoles))
+	}
+
+	line := fmt.Sprintf("%s %s%s", statusIcon(subStatus), truncate(sub.DisplayName, 26), indicator)
 
 	if idx == m.lightCursor {
+		// Highlighted cursor style matching the color scheme
 		return cursorStyle.Padding(0, 1).Render(line)
 	}
 	return itemStyle.Render(line)
 }
 
 func (m Model) renderSubscriptionDetail() string {
-	if len(m.lighthouse) == 0 || m.lightCursor >= len(m.lighthouse) {
+	sub := m.getCurrentSubscription()
+	if sub == nil {
 		return lipgloss.JoinVertical(lipgloss.Center,
 			"",
 			"",
@@ -637,8 +730,6 @@ func (m Model) renderSubscriptionDetail() string {
 			dimStyle.Render("the list to view details"),
 		)
 	}
-
-	sub := m.lighthouse[m.lightCursor]
 	var lines []string
 
 	// Title with decorative line
@@ -647,31 +738,86 @@ func (m Model) renderSubscriptionDetail() string {
 	// Subscription name
 	lines = append(lines, detailLabelStyle.Render("Name: ")+detailValueStyle.Render(sub.DisplayName))
 
-	// Status
-	lines = append(lines, detailLabelStyle.Render("Status: ")+statusIcon(sub.Status)+" "+sub.Status.String())
+	// Tenant (home tenant of the subscription)
+	if sub.TenantName != "" {
+		lines = append(lines, detailLabelStyle.Render("Tenant: ")+detailValueStyle.Render(sub.TenantName))
+	}
 
 	// Subscription ID
 	if sub.ID != "" {
-		lines = append(lines, detailLabelStyle.Render("ID: ")+detailDimStyle.Render(sub.ID))
+		lines = append(lines, detailLabelStyle.Render("ID: ")+detailDimStyle.Render(truncate(sub.ID, 36)))
 	}
 
-	// Customer tenant info
-	if sub.CustomerTenant != "" {
-		lines = append(lines, "", detailDimStyle.Render("─────────────────────────────"))
-		lines = append(lines, detailLabelStyle.Render("Customer Tenant:"))
-		lines = append(lines, detailDimStyle.Render("  "+sub.CustomerTenant))
-	}
-
-	// Linked group info
+	// Eligible Roles section
 	lines = append(lines, "", detailDimStyle.Render("─────────────────────────────"))
-	lines = append(lines, detailLabelStyle.Render("Access Via:"))
-	if sub.LinkedGroupName != "" {
-		lines = append(lines, detailDimStyle.Render("  "+statusIcon(sub.Status)+" "+sub.LinkedGroupName))
-		if sub.LinkedGroupID != "" {
-			lines = append(lines, detailDimStyle.Render("  ID: "+truncate(sub.LinkedGroupID, 30)))
-		}
+
+	// Show focus indicator
+	focusHint := ""
+	if m.subRoleFocus {
+		focusHint = highlightBoldStyle.Render(" [SELECTING]")
+	} else if len(sub.EligibleRoles) > 0 {
+		focusHint = dimStyle.Render(" (→ to select)")
+	}
+	lines = append(lines, detailLabelStyle.Render("Eligible Roles:")+focusHint)
+
+	if len(sub.EligibleRoles) == 0 {
+		lines = append(lines, detailDimStyle.Italic(true).Render("  (no eligible roles)"))
 	} else {
-		lines = append(lines, detailDimStyle.Italic(true).Render("  (direct access)"))
+		// Get selected roles for this subscription
+		selectedRoles := m.selectedSubRoles[sub.ID]
+		if selectedRoles == nil {
+			selectedRoles = make(map[int]bool)
+		}
+
+		for i, role := range sub.EligibleRoles {
+			// Checkbox for selection
+			checkbox := dimStyle.Render(checkboxUnchecked)
+			if selectedRoles[i] {
+				checkbox = highlightBoldStyle.Render(checkboxChecked)
+			}
+
+			// Cursor indicator
+			cursorPrefix := "  "
+			if m.subRoleFocus && i == m.subRoleCursor {
+				cursorPrefix = highlightBoldStyle.Render("> ")
+			}
+
+			// Role status icon
+			roleStatus := statusIcon(role.Status)
+
+			// Role name
+			roleName := role.RoleDefinitionName
+			if roleName == "" {
+				roleName = "Unknown Role"
+			}
+
+			// Build the line
+			line := fmt.Sprintf("%s%s %s %s", cursorPrefix, checkbox, roleStatus, roleName)
+
+			// Apply cursor style if focused
+			if m.subRoleFocus && i == m.subRoleCursor {
+				lines = append(lines, cursorStyle.Render(line))
+			} else {
+				lines = append(lines, line)
+			}
+
+			// Show expiry for active roles
+			if role.ExpiresAt != nil && role.Status.IsActive() {
+				remaining := time.Until(*role.ExpiresAt)
+				if remaining > 0 {
+					expiryStr := formatCompactDuration(remaining)
+					lines = append(lines, detailDimStyle.Render(fmt.Sprintf("       expires: %s", expiryStr)))
+				}
+			}
+		}
+	}
+
+	// Navigation hints
+	lines = append(lines, "", detailDimStyle.Render("─────────────────────────────"))
+	if m.subRoleFocus {
+		lines = append(lines, dimStyle.Render("↑↓ navigate │ Space select │ ← back"))
+	} else if len(sub.EligibleRoles) > 0 {
+		lines = append(lines, dimStyle.Render("→/Tab to select roles │ Space select all"))
 	}
 
 	return strings.Join(lines, "\n")
@@ -796,7 +942,10 @@ func (m Model) renderStatusBar() string {
 	case TabGroups:
 		selected = len(m.selectedGroups)
 	case TabSubscriptions:
-		selected = len(m.selectedLight)
+		// Count total selected roles across all subscriptions
+		for _, roleSelections := range m.selectedSubRoles {
+			selected += len(roleSelections)
+		}
 	}
 	var selectStr string
 	if selected > 0 {
@@ -887,6 +1036,9 @@ func (m Model) renderConfirm() string {
 			itemList += fmt.Sprintf("  %s %s\n", statusIcon(v.Status), v.DisplayName)
 		case azure.Group:
 			itemList += fmt.Sprintf("  %s %s\n", statusIcon(v.Status), v.DisplayName)
+		case SubscriptionRoleActivation:
+			itemList += fmt.Sprintf("  %s %s\n", statusIcon(v.Role.Status), v.Role.RoleDefinitionName)
+			itemList += dimStyle.Render(fmt.Sprintf("     on %s\n", truncate(v.SubscriptionName, 35)))
 		}
 		shown++
 	}
@@ -968,6 +1120,9 @@ func (m Model) renderConfirmDeactivate() string {
 			itemList += fmt.Sprintf("  %s %s\n", statusIcon(v.Status), v.DisplayName)
 		case azure.Group:
 			itemList += fmt.Sprintf("  %s %s\n", statusIcon(v.Status), v.DisplayName)
+		case SubscriptionRoleActivation:
+			itemList += fmt.Sprintf("  %s %s\n", statusIcon(v.Role.Status), v.Role.RoleDefinitionName)
+			itemList += dimStyle.Render(fmt.Sprintf("     on %s\n", truncate(v.SubscriptionName, 35)))
 		}
 		shown++
 	}
@@ -998,20 +1153,35 @@ func (m Model) renderSearch() string {
 	query := m.searchInput.Value()
 	var matchInfo string
 	if query != "" {
-		roleMatches, groupMatches := 0, 0
+		roleMatches, groupMatches, subMatches := 0, 0, 0
+		lowerQuery := strings.ToLower(query)
 		for _, r := range m.roles {
-			if strings.Contains(strings.ToLower(r.DisplayName), strings.ToLower(query)) {
+			if strings.Contains(strings.ToLower(r.DisplayName), lowerQuery) {
 				roleMatches++
 			}
 		}
 		for _, g := range m.groups {
-			if strings.Contains(strings.ToLower(g.DisplayName), strings.ToLower(query)) {
+			if strings.Contains(strings.ToLower(g.DisplayName), lowerQuery) {
 				groupMatches++
 			}
 		}
-		total := roleMatches + groupMatches
+		for _, s := range m.lighthouse {
+			match := strings.Contains(strings.ToLower(s.DisplayName), lowerQuery)
+			if !match {
+				for _, role := range s.EligibleRoles {
+					if strings.Contains(strings.ToLower(role.RoleDefinitionName), lowerQuery) {
+						match = true
+						break
+					}
+				}
+			}
+			if match {
+				subMatches++
+			}
+		}
+		total := roleMatches + groupMatches + subMatches
 		if total > 0 {
-			matchInfo = activeStyle.Render(fmt.Sprintf("Found: %d roles, %d groups", roleMatches, groupMatches))
+			matchInfo = activeStyle.Render(fmt.Sprintf("Found: %d roles, %d groups, %d subs", roleMatches, groupMatches, subMatches))
 		} else {
 			matchInfo = errorBoldStyle.Render("No matches found")
 		}
@@ -1233,13 +1403,6 @@ func spinner(color lipgloss.Color) string {
 func spinnerDots(color lipgloss.Color) string {
 	chars := []string{"⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"}
 	idx := int(time.Now().UnixMilli()/80) % len(chars)
-	return lipgloss.NewStyle().Foreground(color).Render(chars[idx])
-}
-
-// spinnerPulse provides a pulsing effect for waiting states
-func spinnerPulse(color lipgloss.Color) string {
-	chars := []string{"○", "◔", "◑", "◕", "●", "◕", "◑", "◔"}
-	idx := int(time.Now().UnixMilli()/150) % len(chars)
 	return lipgloss.NewStyle().Foreground(color).Render(chars[idx])
 }
 
