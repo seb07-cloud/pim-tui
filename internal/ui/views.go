@@ -527,7 +527,7 @@ func (m Model) renderGroupDetail() string {
 }
 
 func (m Model) renderRolesList(height int) string {
-	return m.renderItemListWithExpiry(height, "roles", len(m.roles), func(i int) (string, azure.ActivationStatus, bool, bool, *time.Time) {
+	return m.renderItemListWithExpiry(height, "roles", len(m.roles), m.rolesScrollOffset, func(i int) (string, azure.ActivationStatus, bool, bool, *time.Time) {
 		role := m.roles[i]
 		return role.DisplayName, role.Status, m.selectedRoles[i], i == m.rolesCursor && m.activeTab == TabRoles, role.ExpiresAt
 	})
@@ -567,7 +567,7 @@ func (m Model) renderListItem(idx int, name string, status azure.ActivationStatu
 }
 
 func (m Model) renderGroupsList(height int) string {
-	return m.renderItemListWithExpiry(height, "groups", len(m.groups), func(i int) (string, azure.ActivationStatus, bool, bool, *time.Time) {
+	return m.renderItemListWithExpiry(height, "groups", len(m.groups), m.groupsScrollOffset, func(i int) (string, azure.ActivationStatus, bool, bool, *time.Time) {
 		group := m.groups[i]
 		return group.DisplayName, group.Status, m.selectedGroups[i], i == m.groupsCursor && m.activeTab == TabGroups, group.ExpiresAt
 	})
@@ -615,7 +615,7 @@ func (m Model) renderSubscriptionsList(height int) string {
 		)
 	}
 
-	// Find cursor position in visible list
+	// Find cursor position in visible list (for position indicator)
 	cursorVisibleIdx := 0
 	for idx, i := range visibleIndices {
 		if i == m.lightCursor {
@@ -626,15 +626,19 @@ func (m Model) renderSubscriptionsList(height int) string {
 
 	displayHeight := height - 1 // Reserve for scroll indicator
 
-	// Calculate scroll window centered on cursor
-	startIdx := 0
-	if len(visibleIndices) > displayHeight {
-		startIdx = cursorVisibleIdx - displayHeight/2
+	// Use stored scroll offset instead of calculating from cursor
+	startIdx := m.lightScrollOffset
+
+	// Clamp scroll offset to valid range
+	if len(visibleIndices) <= displayHeight {
+		startIdx = 0
+	} else {
+		maxOffset := len(visibleIndices) - displayHeight
+		if startIdx > maxOffset {
+			startIdx = maxOffset
+		}
 		if startIdx < 0 {
 			startIdx = 0
-		}
-		if startIdx+displayHeight > len(visibleIndices) {
-			startIdx = len(visibleIndices) - displayHeight
 		}
 	}
 
@@ -1241,7 +1245,8 @@ func (m Model) renderItemList(height int, itemType string, count int, getItem fu
 }
 
 // renderItemListWithExpiry renders a list with optional expiry time display
-func (m Model) renderItemListWithExpiry(height int, itemType string, count int, getItem func(int) (name string, status azure.ActivationStatus, selected, isCursor bool, expiresAt *time.Time)) string {
+// scrollOffset is the stored scroll position (index of first visible item)
+func (m Model) renderItemListWithExpiry(height int, itemType string, count int, scrollOffset int, getItem func(int) (name string, status azure.ActivationStatus, selected, isCursor bool, expiresAt *time.Time)) string {
 	if count == 0 {
 		emptyIcon := "📭"
 		if itemType == "roles" {
@@ -1276,7 +1281,7 @@ func (m Model) renderItemListWithExpiry(height int, itemType string, count int, 
 		)
 	}
 
-	// Find cursor position in visible list
+	// Find cursor position in visible list (for position indicator)
 	cursorVisibleIdx := 0
 	for idx, i := range visibleIndices {
 		_, _, _, isCursor, _ := getItem(i)
@@ -1286,17 +1291,20 @@ func (m Model) renderItemListWithExpiry(height int, itemType string, count int, 
 		}
 	}
 
-	// Calculate scroll window
-	startIdx := 0
+	// Use stored scroll offset instead of calculating from cursor
 	displayHeight := height - 1 // Reserve 1 line for scroll indicator
-	if len(visibleIndices) > displayHeight {
-		// Center cursor in view when possible
-		startIdx = cursorVisibleIdx - displayHeight/2
+	startIdx := scrollOffset
+
+	// Clamp scroll offset to valid range
+	if len(visibleIndices) <= displayHeight {
+		startIdx = 0
+	} else {
+		maxOffset := len(visibleIndices) - displayHeight
+		if startIdx > maxOffset {
+			startIdx = maxOffset
+		}
 		if startIdx < 0 {
 			startIdx = 0
-		}
-		if startIdx+displayHeight > len(visibleIndices) {
-			startIdx = len(visibleIndices) - displayHeight
 		}
 	}
 
