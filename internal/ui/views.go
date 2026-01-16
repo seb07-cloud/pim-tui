@@ -461,8 +461,16 @@ func (m Model) renderRoleDetail() string {
 	lines = append(lines, "", detailDimStyle.Render("─────────────────────────────"))
 	lines = append(lines, detailLabelStyle.Render("Permissions:"))
 	if permissions := GetRolePermissions(role.RoleDefinitionID); len(permissions) > 0 {
+		maxWidth := 40 // Reasonable width for detail panel
 		for _, perm := range permissions {
-			lines = append(lines, detailDimStyle.Render("  • "+perm))
+			wrapped := wrapPermission(perm, maxWidth)
+			for i, line := range wrapped {
+				if i == 0 {
+					lines = append(lines, detailDimStyle.Render("  • "+line))
+				} else {
+					lines = append(lines, detailDimStyle.Render("    "+line)) // indent continuation
+				}
+			}
 		}
 	} else {
 		lines = append(lines, detailDimStyle.Italic(true).Render("  (permissions not available)"))
@@ -1552,4 +1560,44 @@ func formatDuration(d time.Duration) string {
 		return fmt.Sprintf("%dh", h)
 	}
 	return fmt.Sprintf("%dh%dm", h, m)
+}
+
+// wrapPermission wraps a permission string at path segments if it exceeds maxWidth.
+// Uses smart breaking at "/" boundaries with proper indentation for continuation lines.
+func wrapPermission(perm string, maxWidth int) []string {
+	if len(perm) <= maxWidth {
+		return []string{perm}
+	}
+
+	// Split by "/" to find good break points
+	parts := strings.Split(perm, "/")
+	if len(parts) <= 2 {
+		// Can't break meaningfully, just truncate with ellipsis
+		return []string{perm[:maxWidth-3] + "..."}
+	}
+
+	// Build lines trying to keep under maxWidth
+	var lines []string
+	var current string
+	indent := "    " // 4 spaces for continuation
+
+	for i, part := range parts {
+		separator := ""
+		if i > 0 {
+			separator = "/"
+		}
+
+		proposed := current + separator + part
+		if len(proposed) > maxWidth && current != "" {
+			lines = append(lines, current)
+			current = indent + "/" + part
+		} else {
+			current = proposed
+		}
+	}
+	if current != "" {
+		lines = append(lines, current)
+	}
+
+	return lines
 }
