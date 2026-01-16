@@ -642,11 +642,40 @@ func (m Model) renderSubscriptionsList(height int) string {
 		}
 	}
 
+	// Build lines with height constraint - account for tenant headers consuming extra lines
 	var lines []string
-	endIdx := min(startIdx+displayHeight, len(visibleIndices))
 	lastTenant := ""
-	for _, i := range visibleIndices[startIdx:endIdx] {
+	actualEndIdx := startIdx
+
+	// Determine the starting tenant context (for first visible item)
+	if startIdx > 0 && startIdx < len(visibleIndices) {
+		// Look at the item before startIdx to know if we're mid-tenant
+		for j := startIdx - 1; j >= 0; j-- {
+			prevSub := m.lighthouse[visibleIndices[j]]
+			if prevSub.TenantName != "" {
+				lastTenant = prevSub.TenantName
+				break
+			}
+		}
+	}
+
+	for _, i := range visibleIndices[startIdx:] {
 		sub := m.lighthouse[i]
+
+		// Calculate how many lines this item will add
+		linesNeeded := 1 // The subscription item itself
+		if sub.TenantName != lastTenant && sub.TenantName != "" {
+			linesNeeded++ // Tenant header
+			if lastTenant != "" {
+				linesNeeded++ // Spacing between tenant groups
+			}
+		}
+
+		// Check if adding this item would exceed height
+		if len(lines)+linesNeeded > displayHeight {
+			break
+		}
+
 		// Add tenant header when tenant changes
 		if sub.TenantName != lastTenant && sub.TenantName != "" {
 			if lastTenant != "" {
@@ -659,16 +688,20 @@ func (m Model) renderSubscriptionsList(height int) string {
 			lastTenant = sub.TenantName
 		}
 		lines = append(lines, m.renderSubscriptionItem(i, sub))
+		actualEndIdx++
 	}
 
-	// Add scroll indicator if needed
-	if len(visibleIndices) > displayHeight {
+	// Add scroll indicator if needed (content extends beyond visible area)
+	hasMoreAbove := startIdx > 0
+	hasMoreBelow := startIdx+actualEndIdx-startIdx < len(visibleIndices)
+
+	if hasMoreAbove || hasMoreBelow {
 		scrollInfo := dimStyle.Render(fmt.Sprintf("  ↕ %d/%d", cursorVisibleIdx+1, len(visibleIndices)))
-		if startIdx > 0 && endIdx < len(visibleIndices) {
+		if hasMoreAbove && hasMoreBelow {
 			scrollInfo = dimStyle.Render(fmt.Sprintf("  ↑↓ %d/%d", cursorVisibleIdx+1, len(visibleIndices)))
-		} else if startIdx > 0 {
+		} else if hasMoreAbove {
 			scrollInfo = dimStyle.Render(fmt.Sprintf("  ↑ %d/%d", cursorVisibleIdx+1, len(visibleIndices)))
-		} else if endIdx < len(visibleIndices) {
+		} else if hasMoreBelow {
 			scrollInfo = dimStyle.Render(fmt.Sprintf("  ↓ %d/%d", cursorVisibleIdx+1, len(visibleIndices)))
 		}
 		lines = append(lines, scrollInfo)
