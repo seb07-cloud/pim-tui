@@ -1,5 +1,5 @@
 # Binaries
-pim-tui
+/pim-tui
 *.exe
 *.exe~
 *.dll
@@ -30,3 +30,5 @@ Thumbs.db
 
 # Debug
 __debug_bin*
+
+.claude/
