@@ -17,5 +17,6 @@ This suggests a race condition where step completion messages arrive/display out
 
 TBD - Investigate:
 1. Are steps actually completing out of order, or just displaying out of order?
+2. Check if this is already fixed by the complete implementation of Phase 5
 2. Check if step dependencies are enforced
 3. Consider forcing sequential display even if parallel completion

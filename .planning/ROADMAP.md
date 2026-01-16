@@ -2,7 +2,7 @@
 
 ## Overview
 
-This roadmap transforms pim-tui from a working v0.1.0 prototype into a production-quality v1.1 release. The journey starts with architectural foundation (removing CLI shelling), then systematically addresses performance, UI, reliability, robustness, and testing. Each phase builds on the previous, with the native REST migration enabling all subsequent improvements.
+This roadmap tracks pim-tui development across milestones. v1.1 completed the refactor and reliability improvements. v1.2 focuses on UI polish and authentication UX enhancements.
 
 ## Phases
 
@@ -19,6 +19,8 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 5: Reliability Fixes** - Fix race conditions, role lookups, error logging
 - [x] **Phase 6: Robustness** - Graceful shutdown, credential refresh, input validation
 - [x] **Phase 7: Test Coverage** - Unit tests for Azure client, UI, and config
+- [ ] **Phase 8: UI Polish** - Improve startup display, cursor visibility, permission wrapping
+- [ ] **Phase 9: In-App Authentication** - Add az login flow directly in the app
 
 ## Phase Details
 
@@ -133,10 +135,41 @@ Plans:
 - [x] 07-02: Add Azure client HTTP mocking tests (gap closure)
 - [x] 07-03: Add UI state transition tests (gap closure)
 
+### Phase 8: UI Polish
+**Goal**: Improve visual feedback and readability across the UI
+**Depends on**: Phase 7
+**Requirements**: UI-02, UI-03, UI-04
+**Success Criteria** (what must be TRUE):
+  1. Startup steps display in correct order (no race condition in display)
+  2. Selected role/group row is clearly highlighted (white or inverted)
+  3. Long permission strings wrap at path segments with proper indentation
+**Research**: Unlikely (internal UI patterns)
+**Plans**: TBD
+
+Plans:
+- [ ] 08-01: TBD (run /gsd:plan-phase 8 to break down)
+
+### Phase 9: In-App Authentication
+**Goal**: Allow users to authenticate from within the app without restarting
+**Depends on**: Phase 8
+**Requirements**: AUTH-01
+**Success Criteria** (what must be TRUE):
+  1. App detects unauthenticated state and shows friendly message (not error crash)
+  2. User can trigger az login flow from within the app
+  3. After successful login, app refreshes credentials and continues loading
+  4. Device code flow supported for non-interactive terminals
+**Research**: Likely (subprocess handling, terminal interaction)
+**Plans**: TBD
+
+Plans:
+- [ ] 09-01: TBD (run /gsd:plan-phase 9 to break down)
+
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
+Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9
+
+### v1.1 Refactor & Reliability (COMPLETE)
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -148,6 +181,14 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 6. Robustness | 1/1 | Complete | 2026-01-16 |
 | 7. Test Coverage | 3/3 | Complete | 2026-01-16 |
 
+### v1.2 UI Polish & Auth UX (CURRENT)
+
+| Phase | Plans Complete | Status | Completed |
+|-------|----------------|--------|-----------|
+| 8. UI Polish | 0/? | Not started | - |
+| 9. In-App Authentication | 0/? | Not started | - |
+
 ---
 *Roadmap created: 2026-01-16*
-*Milestone: v1.1 Refactor & Reliability*
+*v1.1 Milestone completed: 2026-01-16*
+*v1.2 Milestone started: 2026-01-16*

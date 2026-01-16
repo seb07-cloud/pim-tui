@@ -5,20 +5,34 @@
 See: .planning/PROJECT.md (updated 2026-01-16)
 
 **Core value:** Fast, reliable role activation without leaving the terminal
-**Current focus:** All phases complete - milestone ready for audit
+**Current focus:** v1.2 UI Polish & Auth UX - Phase 8 ready for planning
 
 ## Current Position
 
-Phase: 7 of 7 (Test Coverage)
-Plan: 3 of 3 in current phase - COMPLETE
-Status: All phases complete
-Last activity: 2026-01-16 - Completed phase 7 (test coverage)
+Milestone: v1.2 UI Polish & Auth UX
+Phase: 8 of 9 (UI Polish)
+Plan: 0 of ? in current phase - Not planned
+Status: Ready to plan Phase 8
+Last activity: 2026-01-16 - Added phases 8-9 from todos
 
-Progress: ██████████ 100%
+Progress: ░░░░░░░░░░ 0%
+
+## Milestones
+
+### v1.1 Refactor & Reliability (COMPLETE)
+- Phases: 1-7
+- Plans completed: 13
+- Duration: ~49 minutes
+- Audit: PASSED (15/15 requirements)
+
+### v1.2 UI Polish & Auth UX (CURRENT)
+- Phases: 8-9
+- Plans completed: 0
+- Status: Planning
 
 ## Performance Metrics
 
-**Velocity:**
+**Velocity (v1.1):**
 - Total plans completed: 13
 - Average duration: 4 min
 - Total execution time: 0.82 hours
@@ -34,10 +48,6 @@ Progress: ██████████ 100%
 | 05-reliability-fixes | 1/1 | 3 min | 3 min |
 | 06-robustness | 1/1 | 4 min | 4 min |
 | 07-test-coverage | 3/3 | 9 min | 3 min |
-
-**Recent Trend:**
-- Last 5 plans: 07-03 (2 min), 07-02 (2 min), 07-01 (5 min), 06-01 (4 min), 05-01 (3 min)
-- Trend: Stable
 
 ## Accumulated Context
 
@@ -70,20 +80,24 @@ Recent decisions affecting current work:
 - httptest.Server + custom RoundTripper for Azure API mocking (07-02)
 - mockCredential for static token in tests (07-02)
 
+### Roadmap Evolution
+
+- Phases 8-9 added: Todos converted to phases for v1.2 milestone (2026-01-16)
+
 ### Pending Todos
 
-4 todos captured from user feedback:
-1. Fix startup step ordering display (ui)
-2. Improve role selection cursor visibility (ui)
-3. Smart wrap long permission strings at path segments (ui)
-4. Add in-app az login authentication option (auth)
+0 todos - all converted to roadmap phases:
+- Fix startup step ordering display → Phase 8 (UI Polish)
+- Improve role selection cursor visibility → Phase 8 (UI Polish)
+- Smart wrap long permission strings → Phase 8 (UI Polish)
+- Add in-app az login → Phase 9 (In-App Authentication)
 
 ### Blockers/Concerns
 
-None - all planned phases complete. Ready for milestone audit.
+None.
 
 ## Session Continuity
 
-Last session: 2026-01-16T09:30:00Z
-Stopped at: Completed phase 7 execution
+Last session: 2026-01-16T09:50:00Z
+Stopped at: Created phases 8-9 from todos
 Resume file: None
