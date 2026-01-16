@@ -18,7 +18,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 4: UI Scrolling Fix** - Panels fixed, content scrolls independently
 - [x] **Phase 5: Reliability Fixes** - Fix race conditions, role lookups, error logging
 - [x] **Phase 6: Robustness** - Graceful shutdown, credential refresh, input validation
-- [ ] **Phase 7: Test Coverage** - Unit tests for Azure client, UI, and config
+- [x] **Phase 7: Test Coverage** - Unit tests for Azure client, UI, and config
 
 ## Phase Details
 
@@ -129,7 +129,9 @@ Plans:
 **Plans**: 1 plan in 1 wave
 
 Plans:
-- [ ] 07-01: Add unit tests for Azure client and types
+- [x] 07-01: Add unit tests for Azure client and types
+- [x] 07-02: Add Azure client HTTP mocking tests (gap closure)
+- [x] 07-03: Add UI state transition tests (gap closure)
 
 ## Progress
 
@@ -144,7 +146,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 4. UI Scrolling Fix | 1/1 | Complete | 2026-01-16 |
 | 5. Reliability Fixes | 1/1 | Complete | 2026-01-16 |
 | 6. Robustness | 1/1 | Complete | 2026-01-16 |
-| 7. Test Coverage | 0/1 | Not started | - |
+| 7. Test Coverage | 3/3 | Complete | 2026-01-16 |
 
 ---
 *Roadmap created: 2026-01-16*

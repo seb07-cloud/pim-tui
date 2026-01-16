@@ -23,9 +23,9 @@ Requirements for v1.1 Refactor & Reliability milestone. Each maps to roadmap pha
 
 ### Testing
 
-- [ ] **TEST-01**: Azure client methods have unit test coverage
-- [ ] **TEST-02**: UI state transitions have unit test coverage
-- [ ] **TEST-03**: Config loading has unit test coverage
+- [x] **TEST-01**: Azure client methods have unit test coverage
+- [x] **TEST-02**: UI state transitions have unit test coverage
+- [x] **TEST-03**: Config loading has unit test coverage
 
 ### Reliability
 
@@ -68,9 +68,9 @@ Which phases cover which requirements. Updated by create-roadmap.
 | PERF-01 | Phase 3 | Complete |
 | PERF-02 | Phase 3 | Complete |
 | UI-01 | Phase 4 | Complete |
-| TEST-01 | Phase 7 | Pending |
-| TEST-02 | Phase 7 | Pending |
-| TEST-03 | Phase 7 | Pending |
+| TEST-01 | Phase 7 | Complete |
+| TEST-02 | Phase 7 | Complete |
+| TEST-03 | Phase 7 | Complete |
 | REL-01 | Phase 5 | Complete |
 | REL-02 | Phase 5 | Complete |
 | REL-03 | Phase 5 | Complete |
