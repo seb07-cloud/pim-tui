@@ -5,7 +5,7 @@
 
 ## v1 Requirements
 
-Requirements for v1.1 Refactor & Reliability milestone. Each maps to roadmap phases.
+Requirements for v1.1 Refactor & Reliability and v1.2 UI Polish & Auth UX milestones. Each maps to roadmap phases.
 
 ### Architecture
 
@@ -42,6 +42,10 @@ Requirements for v1.1 Refactor & Reliability milestone. Each maps to roadmap pha
 - [x] **ROB-01**: Application handles SIGINT/SIGTERM gracefully
 - [x] **ROB-02**: Credentials refresh automatically during long sessions
 - [x] **ROB-03**: Justification input is validated (character limits, control characters filtered)
+
+### Authentication UX
+
+- [ ] **AUTH-01**: User can authenticate via device code flow from within the app (no restart needed)
 
 ## v2 Requirements
 
@@ -84,10 +88,11 @@ Which phases cover which requirements. Updated by create-roadmap.
 | UI-02 | Phase 8 | Complete |
 | UI-03 | Phase 8 | Complete |
 | UI-04 | Phase 8 | Complete |
+| AUTH-01 | Phase 9 | Not started |
 
 **Coverage:**
-- v1 requirements: 18 total
-- Mapped to phases: 18 ✓
+- v1 requirements: 19 total
+- Mapped to phases: 19 ✓
 - Unmapped: 0
 
 ---
