@@ -391,7 +391,6 @@ func delayedRefreshCmd(delay time.Duration) tea.Cmd {
 }
 
 // startAuthCmd starts the interactive browser authentication flow.
-// Opens browser automatically and waits for authentication to complete.
 func startAuthCmd(ctx context.Context) tea.Cmd {
 	return func() tea.Msg {
 		client, err := azure.AuthenticateWithBrowser(ctx)
@@ -649,7 +648,7 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case "q":
 			return m, tea.Quit
 		case "l", "L":
-			// Start browser authentication flow
+			// Start browser authentication
 			ctx, cancel := context.WithCancel(context.Background())
 			m.authCancelFunc = cancel
 			m.state = StateAuthenticating
@@ -665,16 +664,13 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case "q":
 			if m.authCancelFunc != nil {
 				m.authCancelFunc()
-				m.authCancelFunc = nil
 			}
 			return m, tea.Quit
 		case "esc":
 			if m.authCancelFunc != nil {
 				m.authCancelFunc()
-				m.authCancelFunc = nil
 			}
 			m.state = StateUnauthenticated
-			m.log(LogInfo, "Authentication cancelled")
 			return m, nil
 		}
 		return m, nil

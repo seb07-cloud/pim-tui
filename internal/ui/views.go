@@ -202,13 +202,11 @@ func (m Model) renderUnauthenticated() string {
 		dimStyle.MarginTop(1).Render(fmt.Sprintf("v%s", m.version)),
 	)
 
-	// Title and instructions based on state
 	if m.state == StateAuthenticating {
 		spin := spinner(colorActive)
 		contentParts = append(contentParts,
 			highlightBoldStyle.MarginTop(2).Render("Authenticating..."),
 			"",
-			dimStyle.Render("Opening browser for authentication..."),
 			detailValueStyle.Render(spin+" Waiting for browser sign-in..."),
 			"",
 			dimStyle.Render("Complete sign-in in your browser window."),

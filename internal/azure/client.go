@@ -13,15 +13,9 @@ import (
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/log"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 )
-
-func init() {
-	// Suppress Azure SDK logging to prevent stderr output corrupting TUI
-	log.SetListener(nil)
-}
 
 const (
 	graphBaseURL = "https://graph.microsoft.com/v1.0"
@@ -58,22 +52,18 @@ func NewClient() (*Client, error) {
 // Opens the default browser for the user to authenticate with Azure.
 // Returns a new Client on success, or error on failure/timeout.
 func AuthenticateWithBrowser(ctx context.Context) (*Client, error) {
-	// Create interactive browser credential using Azure CLI's client ID
-	// This is the same client ID used by `az login`
-	cred, credErr := azidentity.NewInteractiveBrowserCredential(&azidentity.InteractiveBrowserCredentialOptions{
-		ClientID: "04b07795-8ddb-461a-bbee-02f9e1bf7b46", // Azure CLI client ID
-		TenantID: "organizations",
-	})
-	if credErr != nil {
-		return nil, fmt.Errorf("failed to create browser credential: %w", credErr)
+	// Create interactive browser credential with default options
+	cred, err := azidentity.NewInteractiveBrowserCredential(nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create browser credential: %w", err)
 	}
 
-	// Trigger the auth flow by requesting a token for Graph API
-	_, tokenErr := cred.GetToken(ctx, policy.TokenRequestOptions{
+	// Trigger the auth flow by requesting a token
+	_, err = cred.GetToken(ctx, policy.TokenRequestOptions{
 		Scopes: []string{"https://graph.microsoft.com/.default"},
 	})
-	if tokenErr != nil {
-		return nil, fmt.Errorf("browser authentication failed: %w", tokenErr)
+	if err != nil {
+		return nil, fmt.Errorf("browser authentication failed: %w", err)
 	}
 
 	return &Client{
