@@ -14,8 +14,8 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Native REST Migration** - Replace az CLI shelling with native azidentity + REST
 - [x] **Phase 2: Codebase Cleanup** - Remove dead code, establish consistent patterns
-- [ ] **Phase 3: Performance Optimization** - Cache tenant names, add pagination
-- [ ] **Phase 4: UI Scrolling Fix** - Panels fixed, content scrolls independently
+- [x] **Phase 3: Performance Optimization** - Cache tenant names, add pagination
+- [x] **Phase 4: UI Scrolling Fix** - Panels fixed, content scrolls independently
 - [ ] **Phase 5: Reliability Fixes** - Fix race conditions, role lookups, error logging
 - [ ] **Phase 6: Robustness** - Graceful shutdown, credential refresh, input validation
 - [ ] **Phase 7: Test Coverage** - Unit tests for Azure client, UI, and config
@@ -84,7 +84,7 @@ Plans:
 **Plans**: 1 plan in 1 wave (includes human verification checkpoint)
 
 Plans:
-- [ ] 04-01: Add independent scroll offsets per panel with fixed headers
+- [x] 04-01: Add independent scroll offsets per panel with fixed headers
 
 ### Phase 5: Reliability Fixes
 **Goal**: No race conditions, correct role lookups, proper error logging
@@ -141,7 +141,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 1. Native REST Migration | 3/3 | Complete | 2026-01-16 |
 | 2. Codebase Cleanup | 2/2 | Complete | 2026-01-16 |
 | 3. Performance Optimization | 1/1 | Complete | 2026-01-16 |
-| 4. UI Scrolling Fix | 0/1 | Not started | - |
+| 4. UI Scrolling Fix | 1/1 | Complete | 2026-01-16 |
 | 5. Reliability Fixes | 0/1 | Not started | - |
 | 6. Robustness | 0/1 | Not started | - |
 | 7. Test Coverage | 0/1 | Not started | - |
