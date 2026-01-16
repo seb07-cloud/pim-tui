@@ -15,9 +15,15 @@ import (
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/log"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 )
+
+func init() {
+	// Suppress Azure SDK logging to prevent stderr output corrupting TUI
+	log.SetListener(nil)
+}
 
 const (
 	graphBaseURL = "https://graph.microsoft.com/v1.0"

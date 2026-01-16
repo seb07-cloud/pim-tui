@@ -22,16 +22,19 @@ func (m Model) View() string {
 	}
 
 	// Full-screen states use lipgloss.Place internally to fill terminal
+	// Prefix with ANSI clear screen to prevent ghost lines in some terminals
+	const clearScreen = "\033[2J\033[H"
+
 	if m.state == StateLoading {
-		return m.renderLoading()
+		return clearScreen + m.renderLoading()
 	}
 
 	if m.state == StateUnauthenticated || m.state == StateAuthenticating {
-		return m.renderUnauthenticated()
+		return clearScreen + m.renderUnauthenticated()
 	}
 
 	if m.state == StateError {
-		return m.renderError()
+		return clearScreen + m.renderError()
 	}
 
 	var sections []string
