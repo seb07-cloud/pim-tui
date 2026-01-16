@@ -1120,7 +1120,7 @@ func (m *Model) startActivation() (tea.Model, tea.Cmd) {
 					return activationDoneMsg{err}
 				}
 			case azure.Group:
-				if err := client.ActivateGroup(ctx, v.ID, justification, duration); err != nil {
+				if err := client.ActivateGroup(ctx, v.ID, v.RoleDefinitionID, justification, duration); err != nil {
 					return activationDoneMsg{err}
 				}
 			case SubscriptionRoleActivation:
@@ -1193,7 +1193,7 @@ func (m *Model) startDeactivation() (tea.Model, tea.Cmd) {
 					return deactivationDoneMsg{err}
 				}
 			case azure.Group:
-				if err := client.DeactivateGroup(ctx, v.ID); err != nil {
+				if err := client.DeactivateGroup(ctx, v.ID, v.RoleDefinitionID); err != nil {
 					return deactivationDoneMsg{err}
 				}
 			case SubscriptionRoleActivation:
