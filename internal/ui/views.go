@@ -29,6 +29,12 @@ func (m Model) View() string {
 		return lipgloss.JoinVertical(lipgloss.Left, sections...)
 	}
 
+	// Show unauthenticated/authenticating state before error
+	if m.state == StateUnauthenticated || m.state == StateAuthenticating {
+		sections = append(sections, m.renderUnauthenticated())
+		return lipgloss.JoinVertical(lipgloss.Left, sections...)
+	}
+
 	if m.state == StateError {
 		sections = append(sections, m.renderError())
 		return lipgloss.JoinVertical(lipgloss.Left, sections...)
@@ -183,6 +189,69 @@ func (m Model) renderError() string {
 		activeStyle.Render(" [R] Retry ")+"  "+dimStyle.Render(" [Q] Quit "),
 	)
 
+	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, content)
+}
+
+func (m Model) renderUnauthenticated() string {
+	spin := spinner(colorActive)
+
+	var contentParts []string
+
+	// Logo
+	contentParts = append(contentParts,
+		highlightBoldStyle.Render(asciiLogo),
+		dimStyle.MarginTop(1).Render(fmt.Sprintf("v%s", m.version)),
+	)
+
+	// Title based on state
+	if m.state == StateAuthenticating {
+		contentParts = append(contentParts,
+			highlightBoldStyle.MarginTop(2).Render("Authenticating..."))
+	} else {
+		contentParts = append(contentParts,
+			highlightBoldStyle.MarginTop(2).Render("Authentication Required"))
+	}
+
+	// Description
+	contentParts = append(contentParts,
+		"",
+		dimStyle.Render("No Azure CLI session found."),
+		dimStyle.Render("You can authenticate directly from this app."),
+	)
+
+	// Device code message or waiting message
+	if m.state == StateAuthenticating {
+		if m.deviceCodeMessage != "" {
+			// Show device code instructions prominently
+			contentParts = append(contentParts,
+				"",
+				detailDimStyle.Render("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"),
+				"",
+				detailValueStyle.Bold(true).Render(m.deviceCodeMessage),
+				"",
+				detailDimStyle.Render("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"),
+			)
+		}
+		// Spinner with waiting message
+		contentParts = append(contentParts,
+			"",
+			detailValueStyle.Render(spin+" Waiting for browser authentication..."),
+		)
+		// Key hints for authenticating state
+		contentParts = append(contentParts,
+			"",
+			dimStyle.Render(" [Esc] Cancel ")+"  "+dimStyle.Render(" [Q] Quit "),
+		)
+	} else {
+		// Key hints for unauthenticated state
+		contentParts = append(contentParts,
+			"",
+			"",
+			activeStyle.Render(" [L] Login ")+"  "+dimStyle.Render(" [Q] Quit "),
+		)
+	}
+
+	content := lipgloss.JoinVertical(lipgloss.Center, contentParts...)
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, content)
 }
 
