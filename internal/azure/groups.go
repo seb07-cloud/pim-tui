@@ -206,7 +206,7 @@ func (c *Client) GetGroups(ctx context.Context) ([]Group, error) {
 	return eligible, nil
 }
 
-func (c *Client) ActivateGroup(ctx context.Context, groupID, justification string, duration time.Duration) error {
+func (c *Client) ActivateGroup(ctx context.Context, groupID, roleDefinitionID, justification string, duration time.Duration) error {
 	userID, err := c.GetCurrentUser(ctx)
 	if err != nil {
 		return err
@@ -214,11 +214,9 @@ func (c *Client) ActivateGroup(ctx context.Context, groupID, justification strin
 
 	minutes := int(duration.Minutes())
 
-	// First we need to get the roleDefinitionId for "Member" role in this group
-	// For now we assume "member" is the standard role
 	body := map[string]interface{}{
 		"resourceId":       groupID,
-		"roleDefinitionId": "member", // This might need to be fetched dynamically
+		"roleDefinitionId": roleDefinitionID,
 		"subjectId":        userID,
 		"assignmentState":  "Active",
 		"type":             "UserAdd",
@@ -234,7 +232,7 @@ func (c *Client) ActivateGroup(ctx context.Context, groupID, justification strin
 	return err
 }
 
-func (c *Client) DeactivateGroup(ctx context.Context, groupID string) error {
+func (c *Client) DeactivateGroup(ctx context.Context, groupID, roleDefinitionID string) error {
 	userID, err := c.GetCurrentUser(ctx)
 	if err != nil {
 		return err
@@ -243,7 +241,7 @@ func (c *Client) DeactivateGroup(ctx context.Context, groupID string) error {
 	// For deactivation, we use UserRemove type with a minimal schedule
 	body := map[string]interface{}{
 		"resourceId":       groupID,
-		"roleDefinitionId": "member",
+		"roleDefinitionId": roleDefinitionID,
 		"subjectId":        userID,
 		"assignmentState":  "Active",
 		"type":             "UserRemove",
