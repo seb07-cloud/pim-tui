@@ -16,7 +16,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 2: Codebase Cleanup** - Remove dead code, establish consistent patterns
 - [x] **Phase 3: Performance Optimization** - Cache tenant names, add pagination
 - [x] **Phase 4: UI Scrolling Fix** - Panels fixed, content scrolls independently
-- [ ] **Phase 5: Reliability Fixes** - Fix race conditions, role lookups, error logging
+- [x] **Phase 5: Reliability Fixes** - Fix race conditions, role lookups, error logging
 - [ ] **Phase 6: Robustness** - Graceful shutdown, credential refresh, input validation
 - [ ] **Phase 7: Test Coverage** - Unit tests for Azure client, UI, and config
 
@@ -99,7 +99,7 @@ Plans:
 **Plans**: 1 plan in 1 wave
 
 Plans:
-- [ ] 05-01: Fix race conditions and roleDefinitionId handling
+- [x] 05-01: Fix race conditions and roleDefinitionId handling
 
 ### Phase 6: Robustness
 **Goal**: Graceful handling of signals, credentials, and user input
@@ -142,7 +142,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 2. Codebase Cleanup | 2/2 | Complete | 2026-01-16 |
 | 3. Performance Optimization | 1/1 | Complete | 2026-01-16 |
 | 4. UI Scrolling Fix | 1/1 | Complete | 2026-01-16 |
-| 5. Reliability Fixes | 0/1 | Not started | - |
+| 5. Reliability Fixes | 1/1 | Complete | 2026-01-16 |
 | 6. Robustness | 0/1 | Not started | - |
 | 7. Test Coverage | 0/1 | Not started | - |
 

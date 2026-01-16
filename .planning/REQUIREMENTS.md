@@ -19,7 +19,7 @@ Requirements for v1.1 Refactor & Reliability milestone. Each maps to roadmap pha
 
 ### UI
 
-- [ ] **UI-01**: Scrolling within a panel keeps all panels fixed in position (only content scrolls)
+- [x] **UI-01**: Scrolling within a panel keeps all panels fixed in position (only content scrolls)
 
 ### Testing
 
@@ -29,9 +29,9 @@ Requirements for v1.1 Refactor & Reliability milestone. Each maps to roadmap pha
 
 ### Reliability
 
-- [ ] **REL-01**: Parallel goroutines use proper synchronization (no race conditions)
-- [ ] **REL-02**: Group activation uses actual roleDefinitionId from assignment (not hardcoded "member")
-- [ ] **REL-03**: All errors are logged (no silent swallowing)
+- [x] **REL-01**: Parallel goroutines use proper synchronization (no race conditions)
+- [x] **REL-02**: Group activation uses actual roleDefinitionId from assignment (not hardcoded "member")
+- [x] **REL-03**: All errors are logged (no silent swallowing)
 - [x] **REL-04**: Dead code removed (spinnerPulse function, etc.)
 
 ### Robustness
@@ -67,13 +67,13 @@ Which phases cover which requirements. Updated by create-roadmap.
 | ARCH-02 | Phase 2 | Complete |
 | PERF-01 | Phase 3 | Complete |
 | PERF-02 | Phase 3 | Complete |
-| UI-01 | Phase 4 | Pending |
+| UI-01 | Phase 4 | Complete |
 | TEST-01 | Phase 7 | Pending |
 | TEST-02 | Phase 7 | Pending |
 | TEST-03 | Phase 7 | Pending |
-| REL-01 | Phase 5 | Pending |
-| REL-02 | Phase 5 | Pending |
-| REL-03 | Phase 5 | Pending |
+| REL-01 | Phase 5 | Complete |
+| REL-02 | Phase 5 | Complete |
+| REL-03 | Phase 5 | Complete |
 | REL-04 | Phase 2 | Complete |
 | ROB-01 | Phase 6 | Pending |
 | ROB-02 | Phase 6 | Pending |
