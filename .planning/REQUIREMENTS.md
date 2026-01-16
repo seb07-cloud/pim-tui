@@ -36,9 +36,9 @@ Requirements for v1.1 Refactor & Reliability milestone. Each maps to roadmap pha
 
 ### Robustness
 
-- [ ] **ROB-01**: Application handles SIGINT/SIGTERM gracefully
-- [ ] **ROB-02**: Credentials refresh automatically during long sessions
-- [ ] **ROB-03**: Justification input is validated (character limits, control characters filtered)
+- [x] **ROB-01**: Application handles SIGINT/SIGTERM gracefully
+- [x] **ROB-02**: Credentials refresh automatically during long sessions
+- [x] **ROB-03**: Justification input is validated (character limits, control characters filtered)
 
 ## v2 Requirements
 
@@ -75,9 +75,9 @@ Which phases cover which requirements. Updated by create-roadmap.
 | REL-02 | Phase 5 | Complete |
 | REL-03 | Phase 5 | Complete |
 | REL-04 | Phase 2 | Complete |
-| ROB-01 | Phase 6 | Pending |
-| ROB-02 | Phase 6 | Pending |
-| ROB-03 | Phase 6 | Pending |
+| ROB-01 | Phase 6 | Complete |
+| ROB-02 | Phase 6 | Complete |
+| ROB-03 | Phase 6 | Complete |
 
 **Coverage:**
 - v1 requirements: 15 total
