@@ -71,7 +71,8 @@ func (c *Client) GetEligibleGroups(ctx context.Context) ([]Group, error) {
 		wg.Add(1)
 		go func(id string) {
 			defer wg.Done()
-			if name, _ := c.getGroupName(ctx, id); name != "" {
+			// Error intentionally ignored - we fall back to using the group ID as display name
+			if name, err := c.getGroupName(ctx, id); err == nil && name != "" {
 				mu.Lock()
 				groupNames[id] = name
 				mu.Unlock()
@@ -197,12 +198,12 @@ func (c *Client) ActivateGroup(ctx context.Context, groupID, justification strin
 	// First we need to get the roleDefinitionId for "Member" role in this group
 	// For now we assume "member" is the standard role
 	body := map[string]interface{}{
-		"resourceId":      groupID,
+		"resourceId":       groupID,
 		"roleDefinitionId": "member", // This might need to be fetched dynamically
-		"subjectId":       userID,
-		"assignmentState": "Active",
-		"type":            "UserAdd",
-		"reason":          justification,
+		"subjectId":        userID,
+		"assignmentState":  "Active",
+		"type":             "UserAdd",
+		"reason":           justification,
 		"schedule": map[string]interface{}{
 			"type":          "Once",
 			"startDateTime": time.Now().UTC().Format(time.RFC3339),
