@@ -1,0 +1,35 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(go build:*)",
+      "Bash(set \"GOOS=linux\")",
+      "Bash(set \"GOARCH=amd64\")",
+      "Bash(date:*)",
+      "Bash(echo:*)",
+      "Bash(cat:*)",
+      "Bash(ls:*)",
+      "Bash(mkdir:*)",
+      "Bash(wc:*)",
+      "Bash(head:*)",
+      "Bash(tail:*)",
+      "Bash(sort:*)",
+      "Bash(grep:*)",
+      "Bash(tr:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git status:*)",
+      "Bash(git log:*)",
+      "Bash(git diff:*)",
+      "Bash(git tag:*)",
+      "Bash(git -C /mnt/c/Users/SEWI/Git/pim-tui log --oneline -10)",
+      "Bash(git -C /mnt/c/Users/SEWI/Git/pim-tui log --oneline -6)",
+      "Bash(go test:*)",
+      "Bash(golangci-lint run:*)",
+      "Bash(go vet:*)",
+      "mcp__plugin_context7_context7__query-docs",
+      "WebSearch",
+      "Bash(go doc:*)",
+      "Bash(git -C /mnt/c/Users/SEWI/Git/pim-tui tag -l)"
+    ]
+  }
+}

@@ -31,7 +31,4 @@ Thumbs.db
 # Debug
 __debug_bin*
 
-.claude/
-.planning/
-
 PLAN.md
