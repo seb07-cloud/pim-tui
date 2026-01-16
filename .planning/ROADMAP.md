@@ -65,10 +65,10 @@ Plans:
   3. Pagination handles users with 100+ items gracefully
   4. Progress indicator shows during long operations
 **Research**: Unlikely (internal patterns)
-**Plans**: TBD
+**Plans**: 1 plan in 1 wave
 
 Plans:
-- [ ] 03-01: TBD
+- [ ] 03-01: Cache tenant names and add pagination support
 
 ### Phase 4: UI Scrolling Fix
 **Goal**: Panels stay fixed in position, only content scrolls within each panel
@@ -80,10 +80,10 @@ Plans:
   3. Panel headers remain visible during scroll
   4. Scroll position preserved when switching tabs
 **Research**: Unlikely (Bubble Tea patterns exist in codebase)
-**Plans**: TBD
+**Plans**: 1 plan in 1 wave (includes human verification checkpoint)
 
 Plans:
-- [ ] 04-01: TBD
+- [ ] 04-01: Add independent scroll offsets per panel with fixed headers
 
 ### Phase 5: Reliability Fixes
 **Goal**: No race conditions, correct role lookups, proper error logging
@@ -95,10 +95,10 @@ Plans:
   3. All API errors logged with context (endpoint, status, body)
   4. User sees error feedback for failed operations
 **Research**: Unlikely (internal patterns)
-**Plans**: TBD
+**Plans**: 1 plan in 1 wave
 
 Plans:
-- [ ] 05-01: TBD
+- [ ] 05-01: Fix race conditions and roleDefinitionId handling
 
 ### Phase 6: Robustness
 **Goal**: Graceful handling of signals, credentials, and user input
@@ -110,10 +110,10 @@ Plans:
   3. Justification rejects invalid input with user feedback
   4. Application state preserved on graceful exit
 **Research**: Unlikely (Go standard patterns)
-**Plans**: TBD
+**Plans**: 1 plan in 1 wave
 
 Plans:
-- [ ] 06-01: TBD
+- [ ] 06-01: Add graceful shutdown and input validation
 
 ### Phase 7: Test Coverage
 **Goal**: Unit tests for critical paths with meaningful coverage
@@ -125,10 +125,10 @@ Plans:
   3. Config loading tests cover valid, invalid, and missing files
   4. `go test ./...` passes with >70% coverage on target packages
 **Research**: Unlikely (Go testing patterns)
-**Plans**: TBD
+**Plans**: 1 plan in 1 wave
 
 Plans:
-- [ ] 07-01: TBD
+- [ ] 07-01: Add unit tests for Azure client and types
 
 ## Progress
 
@@ -139,11 +139,11 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 |-------|----------------|--------|-----------|
 | 1. Native REST Migration | 0/3 | Not started | - |
 | 2. Codebase Cleanup | 0/1 | Not started | - |
-| 3. Performance Optimization | 0/TBD | Not started | - |
-| 4. UI Scrolling Fix | 0/TBD | Not started | - |
-| 5. Reliability Fixes | 0/TBD | Not started | - |
-| 6. Robustness | 0/TBD | Not started | - |
-| 7. Test Coverage | 0/TBD | Not started | - |
+| 3. Performance Optimization | 0/1 | Not started | - |
+| 4. UI Scrolling Fix | 0/1 | Not started | - |
+| 5. Reliability Fixes | 0/1 | Not started | - |
+| 6. Robustness | 0/1 | Not started | - |
+| 7. Test Coverage | 0/1 | Not started | - |
 
 ---
 *Roadmap created: 2026-01-16*
