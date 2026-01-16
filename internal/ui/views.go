@@ -194,51 +194,34 @@ func (m Model) renderError() string {
 }
 
 func (m Model) renderUnauthenticated() string {
-	spin := spinner(colorActive)
-
 	var contentParts []string
 
-	// Logo
+	// Logo and version
 	contentParts = append(contentParts,
 		highlightBoldStyle.Render(asciiLogo),
 		dimStyle.MarginTop(1).Render(fmt.Sprintf("v%s", m.version)),
 	)
 
-	// Title based on state
+	// Title and instructions based on state
 	if m.state == StateAuthenticating {
+		spin := spinner(colorActive)
 		contentParts = append(contentParts,
-			highlightBoldStyle.MarginTop(2).Render("Authenticating..."))
-	} else {
-		contentParts = append(contentParts,
-			highlightBoldStyle.MarginTop(2).Render("Authentication Required"))
-	}
-
-	// Description
-	contentParts = append(contentParts,
-		"",
-		dimStyle.Render("No Azure CLI session found."),
-		dimStyle.Render("You can authenticate directly from this app."),
-	)
-
-	// State-specific content
-	if m.state == StateAuthenticating {
-		// Simpler authenticating view - avoid duplicate rendering issues
-		contentParts = append(contentParts,
+			highlightBoldStyle.MarginTop(2).Render("Authenticating..."),
 			"",
-			"",
-			detailValueStyle.Render(spin+" Opening browser for authentication..."),
+			dimStyle.Render("Opening browser for authentication..."),
+			detailValueStyle.Render(spin+" Waiting for browser sign-in..."),
 			"",
 			dimStyle.Render("Complete sign-in in your browser window."),
-			"",
 			"",
 			dimStyle.Render("[Esc] Cancel")+"    "+dimStyle.Render("[Q] Quit"),
 		)
 	} else {
-		// Key hints for unauthenticated state
 		contentParts = append(contentParts,
+			highlightBoldStyle.MarginTop(2).Render("Authentication Required"),
 			"",
+			dimStyle.Render("No Azure CLI session found."),
 			"",
-			activeStyle.Render("[L] Login")+"    "+dimStyle.Render("[Q] Quit"),
+			activeStyle.Render("[L] Login with Browser")+"    "+dimStyle.Render("[Q] Quit"),
 		)
 	}
 

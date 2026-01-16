@@ -659,18 +659,16 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	// In authenticating state, allow quit (which cancels auth)
+	// In authenticating state, allow cancel or quit
 	if m.state == StateAuthenticating {
 		switch msg.String() {
 		case "q":
-			// Cancel ongoing auth
 			if m.authCancelFunc != nil {
 				m.authCancelFunc()
 				m.authCancelFunc = nil
 			}
 			return m, tea.Quit
 		case "esc":
-			// Cancel auth and go back to unauthenticated
 			if m.authCancelFunc != nil {
 				m.authCancelFunc()
 				m.authCancelFunc = nil
