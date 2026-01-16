@@ -9,26 +9,30 @@ import (
 	"time"
 )
 
+// pimRoleAssignment represents a single role assignment from PIM API
+type pimRoleAssignment struct {
+	ID         string `json:"id"`
+	ResourceID string `json:"resourceId"`
+	RoleDefinition struct {
+		ID          string `json:"id"`
+		DisplayName string `json:"displayName"`
+		Resource    struct {
+			ID          string `json:"id"`
+			DisplayName string `json:"displayName"`
+		} `json:"resource"`
+	} `json:"roleDefinition"`
+	Subject struct {
+		ID          string `json:"id"`
+		DisplayName string `json:"displayName"`
+	} `json:"subject"`
+	AssignmentState string `json:"assignmentState"` // "Eligible" or "Active"
+	EndDateTime     string `json:"endDateTime"`
+}
+
 // PIM Governance API response types for Entra Roles
 type pimRoleResponse struct {
-	Value []struct {
-		ID         string `json:"id"`
-		ResourceID string `json:"resourceId"`
-		RoleDefinition struct {
-			ID          string `json:"id"`
-			DisplayName string `json:"displayName"`
-			Resource    struct {
-				ID          string `json:"id"`
-				DisplayName string `json:"displayName"`
-			} `json:"resource"`
-		} `json:"roleDefinition"`
-		Subject struct {
-			ID          string `json:"id"`
-			DisplayName string `json:"displayName"`
-		} `json:"subject"`
-		AssignmentState string `json:"assignmentState"` // "Eligible" or "Active"
-		EndDateTime     string `json:"endDateTime"`
-	} `json:"value"`
+	Value    []pimRoleAssignment `json:"value"`
+	NextLink string              `json:"@odata.nextLink"`
 }
 
 func (c *Client) GetEligibleRoles(ctx context.Context) ([]Role, error) {
@@ -44,18 +48,25 @@ func (c *Client) GetEligibleRoles(ctx context.Context) ([]Role, error) {
 	expand := "linkedEligibleRoleAssignment,subject,scopedResource,roleDefinition($expand=resource)"
 	reqURL := fmt.Sprintf("%s/aadroles/roleAssignments?$expand=%s&$filter=%s", pimBaseURL, url.QueryEscape(expand), url.QueryEscape(filter))
 
-	data, err := c.pimRequest(ctx, "GET", reqURL, nil)
-	if err != nil {
-		return nil, err
+	// Collect all results across pages
+	var allAssignments []pimRoleAssignment
+	for reqURL != "" {
+		data, err := c.pimRequest(ctx, "GET", reqURL, nil)
+		if err != nil {
+			return nil, err
+		}
+
+		var result pimRoleResponse
+		if err := json.Unmarshal(data, &result); err != nil {
+			return nil, err
+		}
+
+		allAssignments = append(allAssignments, result.Value...)
+		reqURL = result.NextLink // Follow pagination until no more pages
 	}
 
-	var result pimRoleResponse
-	if err := json.Unmarshal(data, &result); err != nil {
-		return nil, err
-	}
-
-	roles := make([]Role, 0, len(result.Value))
-	for _, r := range result.Value {
+	roles := make([]Role, 0, len(allAssignments))
+	for _, r := range allAssignments {
 		roles = append(roles, Role{
 			ID:               r.ID,
 			DisplayName:      r.RoleDefinition.DisplayName,
@@ -80,18 +91,25 @@ func (c *Client) GetActiveRoles(ctx context.Context) (map[string]*time.Time, err
 	expand := "linkedEligibleRoleAssignment,subject,scopedResource,roleDefinition($expand=resource)"
 	reqURL := fmt.Sprintf("%s/aadroles/roleAssignments?$expand=%s&$filter=%s", pimBaseURL, url.QueryEscape(expand), url.QueryEscape(filter))
 
-	data, err := c.pimRequest(ctx, "GET", reqURL, nil)
-	if err != nil {
-		return nil, err
-	}
+	// Collect all results across pages
+	var allAssignments []pimRoleAssignment
+	for reqURL != "" {
+		data, err := c.pimRequest(ctx, "GET", reqURL, nil)
+		if err != nil {
+			return nil, err
+		}
 
-	var result pimRoleResponse
-	if err := json.Unmarshal(data, &result); err != nil {
-		return nil, err
+		var result pimRoleResponse
+		if err := json.Unmarshal(data, &result); err != nil {
+			return nil, err
+		}
+
+		allAssignments = append(allAssignments, result.Value...)
+		reqURL = result.NextLink // Follow pagination until no more pages
 	}
 
 	active := make(map[string]*time.Time)
-	for _, r := range result.Value {
+	for _, r := range allAssignments {
 		if r.EndDateTime != "" {
 			t, err := time.Parse(time.RFC3339, r.EndDateTime)
 			if err == nil {

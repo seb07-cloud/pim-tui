@@ -9,22 +9,26 @@ import (
 	"time"
 )
 
+// pimGroupAssignment represents a single group assignment from PIM API
+type pimGroupAssignment struct {
+	ID         string `json:"id"`
+	ResourceID string `json:"resourceId"` // Group ID
+	RoleDefinition struct {
+		ID          string `json:"id"`
+		DisplayName string `json:"displayName"` // "Member" or "Owner"
+	} `json:"roleDefinition"`
+	Subject struct {
+		ID          string `json:"id"`
+		DisplayName string `json:"displayName"`
+	} `json:"subject"`
+	AssignmentState string `json:"assignmentState"`
+	EndDateTime     string `json:"endDateTime"`
+}
+
 // PIM Governance API response types for Groups
 type pimGroupResponse struct {
-	Value []struct {
-		ID         string `json:"id"`
-		ResourceID string `json:"resourceId"` // Group ID
-		RoleDefinition struct {
-			ID          string `json:"id"`
-			DisplayName string `json:"displayName"` // "Member" or "Owner"
-		} `json:"roleDefinition"`
-		Subject struct {
-			ID          string `json:"id"`
-			DisplayName string `json:"displayName"`
-		} `json:"subject"`
-		AssignmentState string `json:"assignmentState"`
-		EndDateTime     string `json:"endDateTime"`
-	} `json:"value"`
+	Value    []pimGroupAssignment `json:"value"`
+	NextLink string               `json:"@odata.nextLink"`
 }
 
 // pimGroupResourceResponse for getting group details
@@ -47,19 +51,26 @@ func (c *Client) GetEligibleGroups(ctx context.Context) ([]Group, error) {
 	expand := "linkedEligibleRoleAssignment,subject,scopedResource,roleDefinition($expand=resource)"
 	reqURL := fmt.Sprintf("%s/aadGroups/roleAssignments?$expand=%s&$filter=%s", pimBaseURL, url.QueryEscape(expand), url.QueryEscape(filter))
 
-	data, err := c.pimRequest(ctx, "GET", reqURL, nil)
-	if err != nil {
-		return nil, err
-	}
+	// Collect all results across pages
+	var allAssignments []pimGroupAssignment
+	for reqURL != "" {
+		data, err := c.pimRequest(ctx, "GET", reqURL, nil)
+		if err != nil {
+			return nil, err
+		}
 
-	var result pimGroupResponse
-	if err := json.Unmarshal(data, &result); err != nil {
-		return nil, err
+		var result pimGroupResponse
+		if err := json.Unmarshal(data, &result); err != nil {
+			return nil, err
+		}
+
+		allAssignments = append(allAssignments, result.Value...)
+		reqURL = result.NextLink // Follow pagination until no more pages
 	}
 
 	// Get group details for each unique group (in parallel)
 	groupIDs := make(map[string]bool)
-	for _, g := range result.Value {
+	for _, g := range allAssignments {
 		groupIDs[g.ResourceID] = true
 	}
 
@@ -81,8 +92,8 @@ func (c *Client) GetEligibleGroups(ctx context.Context) ([]Group, error) {
 	}
 	wg.Wait()
 
-	groups := make([]Group, 0, len(result.Value))
-	for _, g := range result.Value {
+	groups := make([]Group, 0, len(allAssignments))
+	for _, g := range allAssignments {
 		displayName := groupNames[g.ResourceID]
 		if displayName == "" {
 			displayName = g.ResourceID // Fallback to ID if name not found
@@ -129,18 +140,25 @@ func (c *Client) GetActiveGroups(ctx context.Context) (map[string]*time.Time, er
 	expand := "linkedEligibleRoleAssignment,subject,scopedResource,roleDefinition($expand=resource)"
 	reqURL := fmt.Sprintf("%s/aadGroups/roleAssignments?$expand=%s&$filter=%s", pimBaseURL, url.QueryEscape(expand), url.QueryEscape(filter))
 
-	data, err := c.pimRequest(ctx, "GET", reqURL, nil)
-	if err != nil {
-		return nil, err
-	}
+	// Collect all results across pages
+	var allAssignments []pimGroupAssignment
+	for reqURL != "" {
+		data, err := c.pimRequest(ctx, "GET", reqURL, nil)
+		if err != nil {
+			return nil, err
+		}
 
-	var result pimGroupResponse
-	if err := json.Unmarshal(data, &result); err != nil {
-		return nil, err
+		var result pimGroupResponse
+		if err := json.Unmarshal(data, &result); err != nil {
+			return nil, err
+		}
+
+		allAssignments = append(allAssignments, result.Value...)
+		reqURL = result.NextLink // Follow pagination until no more pages
 	}
 
 	active := make(map[string]*time.Time)
-	for _, g := range result.Value {
+	for _, g := range allAssignments {
 		if g.EndDateTime != "" {
 			t, err := time.Parse(time.RFC3339, g.EndDateTime)
 			if err == nil {
