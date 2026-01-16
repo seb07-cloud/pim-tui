@@ -605,8 +605,9 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case StateJustification:
 		switch msg.String() {
 		case "enter":
-			if strings.TrimSpace(m.justificationInput.Value()) == "" {
-				m.log(LogError, "Justification is required")
+			_, err := validateJustification(m.justificationInput.Value())
+			if err != nil {
+				m.log(LogError, "%v", err)
 				return m, nil
 			}
 			return m.startActivation()
@@ -1222,4 +1223,30 @@ func (m *Model) cycleDuration() {
 func (m *Model) cycleLogLevel() {
 	m.logLevel = (m.logLevel + 1) % 3
 	m.log(LogInfo, "Log level: %s", m.logLevel.String())
+}
+
+// validateJustification checks the justification input for validity.
+// Returns the cleaned string if valid, or an error describing the issue.
+func validateJustification(input string) (string, error) {
+	cleaned := strings.TrimSpace(input)
+
+	if cleaned == "" {
+		return "", fmt.Errorf("justification is required")
+	}
+
+	// Check for control characters (ASCII 0-31 except 9=tab, 10=newline, 13=CR)
+	for _, r := range cleaned {
+		if r < 32 && r != 9 && r != 10 && r != 13 {
+			return "", fmt.Errorf("justification contains invalid control characters")
+		}
+		if r == 127 { // DEL character
+			return "", fmt.Errorf("justification contains invalid control characters")
+		}
+	}
+
+	if len(cleaned) > 500 {
+		return "", fmt.Errorf("justification exceeds 500 character limit (%d chars)", len(cleaned))
+	}
+
+	return cleaned, nil
 }
