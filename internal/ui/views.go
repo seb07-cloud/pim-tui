@@ -1489,16 +1489,6 @@ func (m Model) durationStr() string {
 	return activeBoldStyle.Render(fmt.Sprintf("%d hours", int(m.duration.Hours())))
 }
 
-func renderExpiryLine(expiresAt *time.Time) string {
-	if expiresAt == nil {
-		return ""
-	}
-	if remaining := time.Until(*expiresAt); remaining > 0 {
-		return detailLabelStyle.Render("Expires: ") + detailValueStyle.Render(formatDuration(remaining))
-	}
-	return ""
-}
-
 func formatDuration(d time.Duration) string {
 	if d < time.Hour {
 		return fmt.Sprintf("%dm", int(d.Minutes()))
