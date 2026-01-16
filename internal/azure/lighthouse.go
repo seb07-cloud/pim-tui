@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"sort"
@@ -321,6 +322,9 @@ func (c *Client) GetLighthouseSubscriptions(ctx context.Context, groups []Group)
 		}(tenantID)
 	}
 	wg.Wait()
+
+	// Debug: Log tenant cache efficiency
+	log.Printf("[lighthouse] Fetched names for %d unique tenants (from %d subscriptions)", len(uniqueTenants), len(subMap))
 
 	// Phase 4: Apply cached tenant info to subscriptions
 	for subID, tenantID := range subTenantMap {
