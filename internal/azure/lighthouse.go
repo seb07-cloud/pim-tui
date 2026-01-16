@@ -286,16 +286,19 @@ func (c *Client) GetLighthouseSubscriptions(ctx context.Context, groups []Group)
 		wg.Add(1)
 		go func(id string) {
 			defer wg.Done()
-			if details, err := c.getSubscriptionDetails(ctx, id); err == nil {
-				tenantID := details.HomeTenantID
-				if tenantID == "" {
-					tenantID = details.TenantID
-				}
-				if tenantID != "" {
-					mu.Lock()
-					subTenantMap[id] = tenantID
-					mu.Unlock()
-				}
+			details, err := c.getSubscriptionDetails(ctx, id)
+			if err != nil {
+				log.Printf("[lighthouse] failed to get subscription details for %s: %v", id, err)
+				return
+			}
+			tenantID := details.HomeTenantID
+			if tenantID == "" {
+				tenantID = details.TenantID
+			}
+			if tenantID != "" {
+				mu.Lock()
+				subTenantMap[id] = tenantID
+				mu.Unlock()
 			}
 		}(subID)
 	}
@@ -314,7 +317,12 @@ func (c *Client) GetLighthouseSubscriptions(ctx context.Context, groups []Group)
 		wg.Add(1)
 		go func(tid string) {
 			defer wg.Done()
-			if name, err := c.getTenantNameByID(ctx, tid); err == nil && name != "" {
+			name, err := c.getTenantNameByID(ctx, tid)
+			if err != nil {
+				log.Printf("[lighthouse] failed to get tenant name for %s: %v", tid, err)
+				return
+			}
+			if name != "" {
 				mu.Lock()
 				tenantCache[tid] = name
 				mu.Unlock()
@@ -342,9 +350,14 @@ func (c *Client) GetLighthouseSubscriptions(ctx context.Context, groups []Group)
 	activeParams.Set("$filter", "asTarget()")
 	activeURL := activeBaseURL + "?" + activeParams.Encode()
 
-	if activeData, activeErr := c.armRequest(ctx, "GET", activeURL); activeErr == nil {
+	activeData, activeErr := c.armRequest(ctx, "GET", activeURL)
+	if activeErr != nil {
+		log.Printf("[lighthouse] active assignments query failed: %v", activeErr)
+	} else {
 		var activeResult roleAssignmentResponse
-		if jsonErr := json.Unmarshal(activeData, &activeResult); jsonErr == nil {
+		if jsonErr := json.Unmarshal(activeData, &activeResult); jsonErr != nil {
+			log.Printf("[lighthouse] failed to parse active assignments: %v", jsonErr)
+		} else {
 			// Build a map of active assignments: scope+roleDefinitionId -> endDateTime
 			activeMap := make(map[string]time.Time)
 			for _, a := range activeResult.Value {
@@ -372,8 +385,6 @@ func (c *Client) GetLighthouseSubscriptions(ctx context.Context, groups []Group)
 			}
 		}
 	}
-	// Note: errors from active assignments query are silently ignored
-	// because this is an enhancement - eligible roles are still returned
 
 	// Convert map to slice and sort by tenant name, then subscription name
 	subscriptions := make([]LighthouseSubscription, 0, len(subMap))

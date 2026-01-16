@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/url"
 	"sync"
 	"time"
@@ -82,8 +83,12 @@ func (c *Client) GetEligibleGroups(ctx context.Context) ([]Group, error) {
 		wg.Add(1)
 		go func(id string) {
 			defer wg.Done()
-			// Error intentionally ignored - we fall back to using the group ID as display name
-			if name, err := c.getGroupName(ctx, id); err == nil && name != "" {
+			name, err := c.getGroupName(ctx, id)
+			if err != nil {
+				log.Printf("[groups] failed to get group name for %s: %v", id, err)
+				return
+			}
+			if name != "" {
 				mu.Lock()
 				groupNames[id] = name
 				mu.Unlock()
