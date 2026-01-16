@@ -21,24 +21,20 @@ func (m Model) View() string {
 		return "Loading..."
 	}
 
-	var sections []string
-
-	// Show loading or error state
+	// Full-screen states use lipgloss.Place internally to fill terminal
 	if m.state == StateLoading {
-		sections = append(sections, m.renderLoading())
-		return lipgloss.JoinVertical(lipgloss.Left, sections...)
+		return m.renderLoading()
 	}
 
-	// Show unauthenticated/authenticating state before error
 	if m.state == StateUnauthenticated || m.state == StateAuthenticating {
-		sections = append(sections, m.renderUnauthenticated())
-		return lipgloss.JoinVertical(lipgloss.Left, sections...)
+		return m.renderUnauthenticated()
 	}
 
 	if m.state == StateError {
-		sections = append(sections, m.renderError())
-		return lipgloss.JoinVertical(lipgloss.Left, sections...)
+		return m.renderError()
 	}
+
+	var sections []string
 
 	// Header with tenant info
 	sections = append(sections, m.renderHeader())
@@ -69,7 +65,9 @@ func (m Model) View() string {
 	// Status bar
 	sections = append(sections, m.renderStatusBar())
 
-	return lipgloss.JoinVertical(lipgloss.Left, sections...)
+	// Join all sections and ensure output fills terminal to prevent ghost lines
+	content := lipgloss.JoinVertical(lipgloss.Left, sections...)
+	return lipgloss.NewStyle().Width(m.width).Height(m.height).Render(content)
 }
 
 func (m Model) renderLoading() string {
