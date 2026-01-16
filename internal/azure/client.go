@@ -10,8 +10,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
-	"syscall"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -60,28 +58,6 @@ func NewClient() (*Client, error) {
 // Opens the default browser for the user to authenticate with Azure.
 // Returns a new Client on success, or error on failure/timeout.
 func AuthenticateWithBrowser(ctx context.Context) (*Client, error) {
-	// Set BROWSER to use Windows browser directly, avoiding WSL wrapper scripts
-	// that produce "WSL Interoperability is disabled" errors
-	if _, err := os.Stat("/mnt/c/Windows/System32"); err == nil {
-		// Running in WSL with access to Windows filesystem
-		os.Setenv("BROWSER", "/mnt/c/Windows/System32/cmd.exe /c start")
-	}
-
-	// Suppress stderr at file descriptor level to affect subprocesses (browser launcher)
-	// This prevents any remaining warnings from corrupting the Bubble Tea TUI
-	devNull, err := os.OpenFile(os.DevNull, os.O_WRONLY, 0)
-	if err == nil {
-		origStderr, _ := syscall.Dup(int(os.Stderr.Fd()))
-		syscall.Dup2(int(devNull.Fd()), int(os.Stderr.Fd()))
-		devNull.Close()
-		defer func() {
-			if origStderr >= 0 {
-				syscall.Dup2(origStderr, int(os.Stderr.Fd()))
-				syscall.Close(origStderr)
-			}
-		}()
-	}
-
 	// Create interactive browser credential using Azure CLI's client ID
 	// This is the same client ID used by `az login`
 	cred, credErr := azidentity.NewInteractiveBrowserCredential(&azidentity.InteractiveBrowserCredentialOptions{
