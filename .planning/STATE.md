@@ -11,8 +11,8 @@ See: .planning/PROJECT.md (updated 2026-01-16)
 
 Phase: 4 of 7 (UI Scrolling Fix)
 Plan: 1 of 1 in current phase
-Status: In progress - awaiting human verification (Task 4)
-Last activity: 2026-01-16 - Executing 04-01-PLAN.md (Tasks 1-3 complete)
+Status: In progress - awaiting human re-verification (Task 4 fix applied)
+Last activity: 2026-01-16 - Fixed subscriptions panel height constraint (c6c5120)
 
 Progress: ██████░░░░ 50%
 
@@ -61,7 +61,7 @@ None yet.
 
 ### Blockers/Concerns
 
-Awaiting human verification of scroll behavior in 04-01-PLAN.md Task 4.
+Awaiting human re-verification after subscriptions panel height fix (c6c5120).
 
 ## Session Continuity
 
