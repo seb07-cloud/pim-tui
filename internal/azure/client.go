@@ -1,3 +1,6 @@
+// Package azure provides API clients for Azure PIM, Graph, and ARM services.
+// Uses azidentity.AzureCLICredential for authentication - requires `az login` before use.
+// All API calls are direct HTTP requests with SDK-managed tokens (no subprocess execution).
 package azure
 
 import (
@@ -30,7 +33,8 @@ type Client struct {
 	tenant     *Tenant // Cached tenant info
 }
 
-// NewClient creates a new Azure client using Azure CLI credentials
+// NewClient creates a new Azure client using Azure CLI credentials.
+// Requires the user to have run `az login` before calling this function.
 func NewClient() (*Client, error) {
 	cred, err := azidentity.NewAzureCLICredential(nil)
 	if err != nil {
