@@ -72,10 +72,11 @@ Recent decisions affecting current work:
 
 ### Pending Todos
 
-3 todos captured from user feedback:
+4 todos captured from user feedback:
 1. Fix startup step ordering display (ui)
 2. Improve role selection cursor visibility (ui)
 3. Smart wrap long permission strings at path segments (ui)
+4. Add in-app az login authentication option (auth)
 
 ### Blockers/Concerns
 
