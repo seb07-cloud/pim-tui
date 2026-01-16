@@ -100,9 +100,8 @@ type Model struct {
 	// Version
 	version string
 
-	// Device code authentication
-	deviceCodeMessage string           // Device code message to display during auth
-	authCancelFunc    context.CancelFunc // Cancel function for auth context
+	// Browser authentication
+	authCancelFunc context.CancelFunc // Cancel function for auth context
 
 	// Data
 	tenant          *azure.Tenant
@@ -197,12 +196,7 @@ type errMsg struct {
 // authRequiredMsg signals that authentication is required (no valid session)
 type authRequiredMsg struct{}
 
-// authCodeMsg carries the device code message for display
-type authCodeMsg struct {
-	message string // The full message with URL and code
-}
-
-// authCompleteMsg signals authentication completed
+// authCompleteMsg signals browser authentication completed
 type authCompleteMsg struct {
 	client *azure.Client
 	err    error
@@ -396,36 +390,13 @@ func delayedRefreshCmd(delay time.Duration) tea.Cmd {
 	})
 }
 
-// startAuthCmd starts the device code authentication flow.
-// It uses a channel to communicate the device code message back to the UI.
+// startAuthCmd starts the interactive browser authentication flow.
+// Opens browser automatically and waits for authentication to complete.
 func startAuthCmd(ctx context.Context) tea.Cmd {
-	// Channel to receive device code message
-	codeChan := make(chan string, 1)
-
-	// Start auth in goroutine
-	authCmd := func() tea.Msg {
-		client, err := azure.AuthenticateWithDeviceCode(ctx, func(message string) error {
-			// Send device code message to channel (non-blocking)
-			select {
-			case codeChan <- message:
-			default:
-			}
-			return nil
-		})
+	return func() tea.Msg {
+		client, err := azure.AuthenticateWithBrowser(ctx)
 		return authCompleteMsg{client: client, err: err}
 	}
-
-	// Listen for device code message
-	codeListenerCmd := func() tea.Msg {
-		select {
-		case msg := <-codeChan:
-			return authCodeMsg{message: msg}
-		case <-ctx.Done():
-			return nil
-		}
-	}
-
-	return tea.Batch(authCmd, codeListenerCmd)
 }
 
 func (m *Model) log(level LogLevel, format string, args ...interface{}) {
@@ -464,14 +435,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.loading = false
 		m.state = StateUnauthenticated
 		m.err = nil
-		m.deviceCodeMessage = ""
 		m.log(LogInfo, "Authentication required - press L to login")
-		return m, nil
-
-	case authCodeMsg:
-		// Device code received, display to user
-		m.deviceCodeMessage = msg.message
-		m.log(LogInfo, "Device code received - complete login in browser")
 		return m, nil
 
 	case authCompleteMsg:
@@ -480,7 +444,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.err != nil {
 			// Auth failed, go back to unauthenticated state
 			m.state = StateUnauthenticated
-			m.deviceCodeMessage = ""
 			m.log(LogError, "Authentication failed: %v", msg.err)
 			return m, nil
 		}
@@ -489,7 +452,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.state = StateLoading
 		m.loading = true
 		m.loadingMessage = "Loading tenant info..."
-		m.deviceCodeMessage = ""
 		m.log(LogInfo, "Authentication successful")
 		return m, loadTenantCmd(m.client)
 
@@ -687,12 +649,11 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case "q":
 			return m, tea.Quit
 		case "l", "L":
-			// Start device code authentication flow
+			// Start browser authentication flow
 			ctx, cancel := context.WithCancel(context.Background())
 			m.authCancelFunc = cancel
 			m.state = StateAuthenticating
-			m.deviceCodeMessage = ""
-			m.log(LogInfo, "Starting device code authentication...")
+			m.log(LogInfo, "Opening browser for authentication...")
 			return m, startAuthCmd(ctx)
 		}
 		return m, nil
@@ -715,7 +676,6 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.authCancelFunc = nil
 			}
 			m.state = StateUnauthenticated
-			m.deviceCodeMessage = ""
 			m.log(LogInfo, "Authentication cancelled")
 			return m, nil
 		}

@@ -17,10 +17,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 )
 
-// DeviceCodeCallback is called when a device code is received.
-// The callback should display the message to the user.
-type DeviceCodeCallback func(message string) error
-
 const (
 	graphBaseURL = "https://graph.microsoft.com/v1.0"
 	graphBetaURL = "https://graph.microsoft.com/beta"
@@ -52,28 +48,24 @@ func NewClient() (*Client, error) {
 	}, nil
 }
 
-// AuthenticateWithDeviceCode performs device code authentication flow.
-// The callback is invoked with the user instructions (URL and code).
+// AuthenticateWithBrowser performs interactive browser authentication flow.
+// Opens the default browser for the user to authenticate with Azure.
 // Returns a new Client on success, or error on failure/timeout.
-func AuthenticateWithDeviceCode(ctx context.Context, callback DeviceCodeCallback) (*Client, error) {
-	// Create device code credential with user prompt callback
-	// Using empty TenantID and ClientID to use Azure CLI's defaults (multi-tenant support)
-	cred, err := azidentity.NewDeviceCodeCredential(&azidentity.DeviceCodeCredentialOptions{
-		UserPrompt: func(ctx context.Context, message azidentity.DeviceCodeMessage) error {
-			return callback(message.Message)
-		},
-	})
+func AuthenticateWithBrowser(ctx context.Context) (*Client, error) {
+	// Create interactive browser credential with default options
+	// Using nil options to use defaults (multi-tenant support)
+	cred, err := azidentity.NewInteractiveBrowserCredential(nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create device code credential: %w", err)
+		return nil, fmt.Errorf("failed to create browser credential: %w", err)
 	}
 
 	// Trigger the auth flow by requesting a token
-	// This will invoke the UserPrompt callback with the device code message
+	// This will open the browser automatically
 	_, err = cred.GetToken(ctx, policy.TokenRequestOptions{
 		Scopes: []string{"https://graph.microsoft.com/.default"},
 	})
 	if err != nil {
-		return nil, fmt.Errorf("device code authentication failed: %w", err)
+		return nil, fmt.Errorf("browser authentication failed: %w", err)
 	}
 
 	return &Client{

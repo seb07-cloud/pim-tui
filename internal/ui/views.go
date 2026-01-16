@@ -219,23 +219,18 @@ func (m Model) renderUnauthenticated() string {
 		dimStyle.Render("You can authenticate directly from this app."),
 	)
 
-	// Device code message or waiting message
+	// Browser authentication message
 	if m.state == StateAuthenticating {
-		if m.deviceCodeMessage != "" {
-			// Show device code instructions prominently
-			contentParts = append(contentParts,
-				"",
-				detailDimStyle.Render("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"),
-				"",
-				detailValueStyle.Bold(true).Render(m.deviceCodeMessage),
-				"",
-				detailDimStyle.Render("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"),
-			)
-		}
-		// Spinner with waiting message
+		// Spinner with browser opening message
 		contentParts = append(contentParts,
 			"",
-			detailValueStyle.Render(spin+" Waiting for browser authentication..."),
+			detailDimStyle.Render("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"),
+			"",
+			detailValueStyle.Render(spin+" Opening browser for authentication..."),
+			"",
+			dimStyle.Render("Complete sign-in in your browser window."),
+			"",
+			detailDimStyle.Render("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"),
 		)
 		// Key hints for authenticating state
 		contentParts = append(contentParts,
