@@ -217,30 +217,25 @@ func (m Model) renderUnauthenticated() string {
 		dimStyle.Render("You can authenticate directly from this app."),
 	)
 
-	// Browser authentication message
+	// State-specific content
 	if m.state == StateAuthenticating {
-		// Spinner with browser opening message
+		// Simpler authenticating view - avoid duplicate rendering issues
 		contentParts = append(contentParts,
 			"",
-			detailDimStyle.Render("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"),
 			"",
 			detailValueStyle.Render(spin+" Opening browser for authentication..."),
 			"",
 			dimStyle.Render("Complete sign-in in your browser window."),
 			"",
-			detailDimStyle.Render("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"),
-		)
-		// Key hints for authenticating state
-		contentParts = append(contentParts,
 			"",
-			dimStyle.Render(" [Esc] Cancel ")+"  "+dimStyle.Render(" [Q] Quit "),
+			dimStyle.Render("[Esc] Cancel")+"    "+dimStyle.Render("[Q] Quit"),
 		)
 	} else {
 		// Key hints for unauthenticated state
 		contentParts = append(contentParts,
 			"",
 			"",
-			activeStyle.Render(" [L] Login ")+"  "+dimStyle.Render(" [Q] Quit "),
+			activeStyle.Render("[L] Login")+"    "+dimStyle.Render("[Q] Quit"),
 		)
 	}
 

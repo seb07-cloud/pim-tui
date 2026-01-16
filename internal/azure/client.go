@@ -11,6 +11,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"syscall"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -53,32 +54,38 @@ func NewClient() (*Client, error) {
 // Opens the default browser for the user to authenticate with Azure.
 // Returns a new Client on success, or error on failure/timeout.
 func AuthenticateWithBrowser(ctx context.Context) (*Client, error) {
-	// Suppress stderr during browser launch to avoid WSL warnings corrupting TUI
-	// The browser launcher may print diagnostic messages that interfere with Bubble Tea
-	origStderr := os.Stderr
-	devNull, _ := os.Open(os.DevNull)
-	if devNull != nil {
-		os.Stderr = devNull
+	// Suppress stderr at file descriptor level to affect subprocesses (browser launcher)
+	// This prevents WSL interop warnings from corrupting the Bubble Tea TUI
+	devNull, err := os.OpenFile(os.DevNull, os.O_WRONLY, 0)
+	if err == nil {
+		// Save original stderr fd
+		origStderr, _ := syscall.Dup(int(os.Stderr.Fd()))
+		// Redirect stderr to /dev/null
+		syscall.Dup2(int(devNull.Fd()), int(os.Stderr.Fd()))
+		devNull.Close()
 		defer func() {
-			os.Stderr = origStderr
-			devNull.Close()
+			// Restore original stderr
+			if origStderr >= 0 {
+				syscall.Dup2(origStderr, int(os.Stderr.Fd()))
+				syscall.Close(origStderr)
+			}
 		}()
 	}
 
 	// Create interactive browser credential with default options
 	// Using nil options to use defaults (multi-tenant support)
-	cred, err := azidentity.NewInteractiveBrowserCredential(nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create browser credential: %w", err)
+	cred, credErr := azidentity.NewInteractiveBrowserCredential(nil)
+	if credErr != nil {
+		return nil, fmt.Errorf("failed to create browser credential: %w", credErr)
 	}
 
 	// Trigger the auth flow by requesting a token
 	// This will open the browser automatically
-	_, err = cred.GetToken(ctx, policy.TokenRequestOptions{
+	_, tokenErr := cred.GetToken(ctx, policy.TokenRequestOptions{
 		Scopes: []string{"https://graph.microsoft.com/.default"},
 	})
-	if err != nil {
-		return nil, fmt.Errorf("browser authentication failed: %w", err)
+	if tokenErr != nil {
+		return nil, fmt.Errorf("browser authentication failed: %w", tokenErr)
 	}
 
 	return &Client{
