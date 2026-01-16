@@ -59,7 +59,10 @@ Recent decisions affecting current work:
 
 ### Pending Todos
 
-None.
+3 todos captured from user feedback:
+1. Fix startup step ordering display (ui)
+2. Improve role selection cursor visibility (ui)
+3. Smart wrap long permission strings at path segments (ui)
 
 ### Blockers/Concerns
 
