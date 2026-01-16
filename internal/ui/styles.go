@@ -4,7 +4,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/sebsebseb1982/pim-tui/internal/config"
+	"github.com/seb07-cloud/pim-tui/internal/config"
 )
 
 var (
@@ -91,10 +91,10 @@ var (
 	detailValueStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#ffffff"))
 	detailDimStyle   = lipgloss.NewStyle().Foreground(colorDim)
 
-	// Cursor/selection style
+	// Cursor/selection style - high contrast inverted for visibility
 	cursorStyle = lipgloss.NewStyle().
-			Background(lipgloss.Color("#333333")).
-			Foreground(colorHighlight).
+			Background(lipgloss.Color("#ffffff")).
+			Foreground(lipgloss.Color("#000000")).
 			Bold(true)
 
 	// Common inline styles
@@ -237,4 +237,10 @@ func rebuildStyles() {
 	detailTitleStyle = lipgloss.NewStyle().Bold(true).Foreground(colorHighlight)
 	detailLabelStyle = lipgloss.NewStyle().Foreground(colorPending).Bold(true)
 	detailDimStyle = lipgloss.NewStyle().Foreground(colorDim)
+
+	// Rebuild cursor style for theme customization
+	cursorStyle = lipgloss.NewStyle().
+		Background(lipgloss.Color("#ffffff")).
+		Foreground(lipgloss.Color("#000000")).
+		Bold(true)
 }
