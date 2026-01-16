@@ -96,7 +96,10 @@ Recent decisions affecting current work:
 
 ### Pending Todos
 
-0 todos - all converted to roadmap phases:
+1 todo:
+- **Fix browser auth splash screen errors** (ui) - WSL errors and duplicate lines during browser auth flow
+
+Completed (converted to phases):
 - Fix startup step ordering display → Phase 8 (DONE)
 - Improve role selection cursor visibility → Phase 8 (DONE)
 - Smart wrap long permission strings → Phase 8 (DONE)
