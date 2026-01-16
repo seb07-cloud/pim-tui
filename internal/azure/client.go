@@ -82,19 +82,19 @@ func AuthenticateWithBrowser(ctx context.Context) (*Client, error) {
 		}()
 	}
 
-	// Create interactive browser credential
-	// Use "organizations" tenant for multi-tenant support
+	// Create interactive browser credential using Azure CLI's client ID
+	// This is the same client ID used by `az login`
 	cred, credErr := azidentity.NewInteractiveBrowserCredential(&azidentity.InteractiveBrowserCredentialOptions{
+		ClientID: "04b07795-8ddb-461a-bbee-02f9e1bf7b46", // Azure CLI client ID
 		TenantID: "organizations",
 	})
 	if credErr != nil {
 		return nil, fmt.Errorf("failed to create browser credential: %w", credErr)
 	}
 
-	// Trigger the auth flow by requesting a token
-	// Use user_impersonation scope for Azure management access
+	// Trigger the auth flow by requesting a token for Graph API
 	_, tokenErr := cred.GetToken(ctx, policy.TokenRequestOptions{
-		Scopes: []string{"https://management.azure.com/user_impersonation"},
+		Scopes: []string{"https://graph.microsoft.com/.default"},
 	})
 	if tokenErr != nil {
 		return nil, fmt.Errorf("browser authentication failed: %w", tokenErr)
