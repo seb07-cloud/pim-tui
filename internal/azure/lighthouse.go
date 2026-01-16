@@ -277,44 +277,58 @@ func (c *Client) GetLighthouseSubscriptions(ctx context.Context, groups []Group)
 		sub.EligibleRoles = append(sub.EligibleRoles, role)
 	}
 
-	// Fetch tenant IDs and names in parallel
+	// Phase 1: Fetch subscription details to get tenant IDs (in parallel)
+	subTenantMap := make(map[string]string) // subID -> tenantID
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 	for subID := range subMap {
 		wg.Add(1)
 		go func(id string) {
 			defer wg.Done()
-
-			// Fetch subscription details for tenant ID
-			var tenantID string
 			if details, err := c.getSubscriptionDetails(ctx, id); err == nil {
-				tenantID = details.HomeTenantID
+				tenantID := details.HomeTenantID
 				if tenantID == "" {
 					tenantID = details.TenantID
 				}
+				if tenantID != "" {
+					mu.Lock()
+					subTenantMap[id] = tenantID
+					mu.Unlock()
+				}
 			}
-
-			if tenantID == "" {
-				return
-			}
-
-			// Fetch tenant name
-			var tenantName string
-			if name, err := c.getTenantNameByID(ctx, tenantID); err == nil && name != "" {
-				tenantName = name
-			} else {
-				tenantName = getTenantDisplayName(tenantID, nil)
-			}
-
-			mu.Lock()
-			if sub, ok := subMap[id]; ok {
-				sub.TenantID = tenantID
-				sub.TenantName = tenantName
-			}
-			mu.Unlock()
 		}(subID)
 	}
 	wg.Wait()
+
+	// Phase 2: Collect unique tenant IDs
+	uniqueTenants := make(map[string]bool)
+	for _, tenantID := range subTenantMap {
+		uniqueTenants[tenantID] = true
+	}
+
+	// Phase 3: Fetch tenant names for unique tenant IDs only (in parallel)
+	// This is the optimization: N subscriptions in M tenants = M calls instead of N calls
+	tenantCache := make(map[string]string) // tenantID -> tenantName
+	for tenantID := range uniqueTenants {
+		wg.Add(1)
+		go func(tid string) {
+			defer wg.Done()
+			if name, err := c.getTenantNameByID(ctx, tid); err == nil && name != "" {
+				mu.Lock()
+				tenantCache[tid] = name
+				mu.Unlock()
+			}
+		}(tenantID)
+	}
+	wg.Wait()
+
+	// Phase 4: Apply cached tenant info to subscriptions
+	for subID, tenantID := range subTenantMap {
+		if sub, ok := subMap[subID]; ok {
+			sub.TenantID = tenantID
+			sub.TenantName = getTenantDisplayName(tenantID, tenantCache)
+		}
+	}
 
 	// Query active role assignments to update status
 	// This is optional - if it fails, we just don't show which roles are active
