@@ -144,10 +144,10 @@ Plans:
   2. Selected role/group row is clearly highlighted (white or inverted)
   3. Long permission strings wrap at path segments with proper indentation
 **Research**: Unlikely (internal UI patterns)
-**Plans**: TBD
+**Plans**: 1 plan in 1 wave
 
 Plans:
-- [ ] 08-01: TBD (run /gsd:plan-phase 8 to break down)
+- [ ] 08-01: Fix startup ordering, improve cursor visibility, wrap permissions
 
 ### Phase 9: In-App Authentication
 **Goal**: Allow users to authenticate from within the app without restarting
@@ -185,7 +185,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 8. UI Polish | 0/? | Not started | - |
+| 8. UI Polish | 0/1 | Not started | - |
 | 9. In-App Authentication | 0/? | Not started | - |
 
 ---
