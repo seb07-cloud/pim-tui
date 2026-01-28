@@ -1,13 +1,4 @@
-```
- ██████╗ ██╗███╗   ███╗    ████████╗██╗   ██╗██╗
- ██╔══██╗██║████╗ ████║    ╚══██╔══╝██║   ██║██║
- ██████╔╝██║██╔████╔██║       ██║   ██║   ██║██║
- ██╔═══╝ ██║██║╚██╔╝██║       ██║   ██║   ██║██║
- ██║     ██║██║ ╚═╝ ██║       ██║   ╚██████╔╝██║
- ╚═╝     ╚═╝╚═╝     ╚═╝       ╚═╝    ╚═════╝ ╚═╝
-
- Azure Privileged Identity Management in your terminal
-```
+![Azure Privileged Identity Management in your terminal](media/logo.png)
 
 <p align="center">
   <a href="https://github.com/seb07-cloud/pim-tui/releases"><img src="https://img.shields.io/badge/release-v1.2.2-00ADD8?style=flat-square" alt="Release"></a>
@@ -43,38 +34,6 @@ Activate Entra ID roles, PIM groups, and Azure RBAC roles across Lighthouse tena
 ### Tree View
 ![Role Flow](media/flow.png)
 *Visual hierarchy showing active roles and their relationship to the tenant*
-
----
-
-## Interface Preview
-
-```
-┌──────────────────────────────────────────────────────────────────────────────┐
-│  Contoso Corp                               Token expires: 2h 45m  ● 3 Active│
-├──────────────────────────────────────────────────────────────────────────────┤
-│  [PIM Roles (5)]       PIM Groups (3)       Subscriptions (12)               │
-├───────────────────────────────────┬──────────────────────────────────────────┤
-│                                   │                                          │
-│  ● Global Administrator      [T0] │  Role Details                            │
-│  ○ Security Administrator         │  ───────────────────────────────         │
-│  ○ User Administrator             │  Name: Global Administrator              │
-│  ◐ Application Administrator      │  Status: Active expires 1h 23m           │
-│  ○ Cloud App Security Admin       │  Tier: 0 - Control Plane                 │
-│                                   │                                          │
-│                                   │  WARNING: Tier 0 Role                    │
-│                                   │  This role has tenant-wide admin rights. │
-│                                   │  Attack Path: Direct privilege escalation│
-│                                   │                                          │
-├───────────────────────────────────┴──────────────────────────────────────────┤
-│  Activity Log                                                                │
-│  [INFO] Role activated: Global Administrator (4h)                            │
-│  [INFO] Refreshed role status                                                │
-├──────────────────────────────────────────────────────────────────────────────┤
-│  Duration: [4h]   Auto-refresh: 45s   Selected: 1   /search                  │
-└──────────────────────────────────────────────────────────────────────────────┘
-
-  ● Active    ◐ Expiring    ○ Inactive    ◌ Pending    [T0] Tier 0
-```
 
 ---
 
