@@ -22,14 +22,27 @@
 
 Activate Entra ID roles, PIM groups, and Azure RBAC roles across Lighthouse tenants—all from your terminal. PIM-TUI brings just-in-time privilege elevation to the command line with real-time status tracking, attack path visualization, and full audit trail support.
 
-<!--
-TODO: Add demo GIF showing:
-1. Launching app and authenticating
-2. Navigating between tabs (PIM Roles, PIM Groups, Subscriptions)
-3. Selecting and activating a role with justification
-4. Viewing tier information and attack paths
-5. Using tree view to see role inheritance
--->
+## Screenshots
+
+### Main Interface
+![Main Interface](media/main.png)
+*Role list with details panel showing security tier, attack path info, and permissions*
+
+### Loading Screen
+![Loading Screen](media/loading.png)
+*Startup sequence with authentication and data loading progress*
+
+### Role Activation
+![Activation Confirmation](media/activation.png)
+*Batch activation with Tier 0 warning and duration selection*
+
+### Processing
+![Processing Activation](media/process_activation.png)
+*Real-time progress during role activation*
+
+### Tree View
+![Role Flow](media/flow.png)
+*Visual hierarchy showing active roles and their relationship to the tenant*
 
 ---
 
