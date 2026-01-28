@@ -11,7 +11,6 @@
 
 <p align="center">
   <a href="https://github.com/seb07-cloud/pim-tui/releases"><img src="https://img.shields.io/badge/release-v1.2.2-00ADD8?style=flat-square" alt="Release"></a>
-  <a href="https://github.com/seb07-cloud/pim-tui/actions"><img src="https://img.shields.io/github/actions/workflow/status/seb07-cloud/pim-tui/release.yml?branch=main&style=flat-square" alt="Build Status"></a>
   <img src="https://img.shields.io/badge/Go-1.22+-00ADD8?style=flat-square&logo=go" alt="Go Version">
   <a href="https://goreportcard.com/report/github.com/seb07-cloud/pim-tui"><img src="https://goreportcard.com/badge/github.com/seb07-cloud/pim-tui?style=flat-square" alt="Go Report Card"></a>
   <img src="https://img.shields.io/badge/platform-windows%20%7C%20linux%20%7C%20macos-lightgrey?style=flat-square" alt="Platform">
