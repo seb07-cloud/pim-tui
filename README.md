@@ -309,19 +309,19 @@ If Azure CLI credentials aren't available:
 ┌──────────────────────────────────────────────────────────────────┐
 │                           PIM-TUI                                │
 ├──────────────────────────────────────────────────────────────────┤
-│  ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐   │
-│  │   TUI    │    │  State   │    │  Azure   │    │  Config  │   │
-│  │  Views   │◄──►│ Machine  │◄──►│  Client  │    │  Loader  │   │
-│  └──────────┘    └──────────┘    └──────────┘    └──────────┘   │
+│  ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐    │
+│  │   TUI    │    │  State   │    │  Azure   │    │  Config  │    │
+│  │  Views   │◄──►│ Machine  │◄──►│  Client  │    │  Loader  │    │
+│  └──────────┘    └──────────┘    └──────────┘    └──────────┘    │
 │       ▲                               │                          │
 │       │                               ▼                          │
-│  ┌──────────┐              ┌─────────────────────┐              │
-│  │  Bubble  │              │    Azure APIs       │              │
-│  │   Tea    │              ├─────────────────────┤              │
-│  └──────────┘              │ • Graph API         │              │
-│                            │ • PIM Governance    │              │
-│                            │ • ARM (Lighthouse)  │              │
-│                            └─────────────────────┘              │
+│  ┌──────────┐              ┌─────────────────────┐               │
+│  │  Bubble  │              │    Azure APIs       │               │
+│  │   Tea    │              ├─────────────────────┤               │
+│  └──────────┘              │ • Graph API         │               │ 
+│                            │ • PIM Governance    │               │
+│                            │ • ARM (Lighthouse)  │               │
+│                            └─────────────────────┘               │ 
 └──────────────────────────────────────────────────────────────────┘
 ```
 
@@ -362,12 +362,8 @@ pim-tui/
 - [x] Configurable themes
 
 ### Planned
-- [ ] Role schedule management (future activations)
-- [ ] Approval workflow support
 - [ ] Multi-tenant switcher
 - [ ] Custom tier overrides
-- [ ] SSH agent integration
-- [ ] Notification support (system tray)
 
 ---
 
