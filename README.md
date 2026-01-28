@@ -37,31 +37,31 @@ TODO: Add demo GIF showing:
 ## Interface Preview
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│  🏢 Contoso Corp                              Token expires: 2h 45m    ● 3 Active│
-├─────────────────────────────────────────────────────────────────────────────────┤
-│  [🔐 PIM Roles (5)]    👥 PIM Groups (3)    📑 Subscriptions (12)               │
-├────────────────────────────────────┬────────────────────────────────────────────┤
-│                                    │                                            │
-│  ● Global Administrator      ⚠ T0 │  Role Details                              │
-│  ○ Security Administrator         │  ─────────────────────────────             │
-│  ○ User Administrator             │  Name: Global Administrator                │
-│  ◐ Application Administrator      │  Status: Active (expires 1h 23m)           │
-│  ○ Cloud App Security Admin       │  Tier: 0 - Control Plane                   │
-│                                    │                                            │
-│                                    │  ⚠ WARNING: Tier 0 Role                   │
-│                                    │  This role has tenant-wide admin rights.  │
-│                                    │  Attack Path: Direct privilege escalation │
-│                                    │                                            │
-├────────────────────────────────────┴────────────────────────────────────────────┤
-│  Activity Log                                                                   │
-│  [INFO] Role activated: Global Administrator (4h)                              │
-│  [INFO] Refreshed role status                                                  │
-├─────────────────────────────────────────────────────────────────────────────────┤
-│  Duration: [4h]  Auto-refresh: 45s  Selected: 1  🔍 /search                    │
-└─────────────────────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────────┐
+│  Contoso Corp                               Token expires: 2h 45m  ● 3 Active│
+├──────────────────────────────────────────────────────────────────────────────┤
+│  [PIM Roles (5)]       PIM Groups (3)       Subscriptions (12)               │
+├───────────────────────────────────┬──────────────────────────────────────────┤
+│                                   │                                          │
+│  ● Global Administrator      [T0] │  Role Details                            │
+│  ○ Security Administrator         │  ───────────────────────────────         │
+│  ○ User Administrator             │  Name: Global Administrator              │
+│  ◐ Application Administrator      │  Status: Active expires 1h 23m           │
+│  ○ Cloud App Security Admin       │  Tier: 0 - Control Plane                 │
+│                                   │                                          │
+│                                   │  WARNING: Tier 0 Role                    │
+│                                   │  This role has tenant-wide admin rights. │
+│                                   │  Attack Path: Direct privilege escalation│
+│                                   │                                          │
+├───────────────────────────────────┴──────────────────────────────────────────┤
+│  Activity Log                                                                │
+│  [INFO] Role activated: Global Administrator (4h)                            │
+│  [INFO] Refreshed role status                                                │
+├──────────────────────────────────────────────────────────────────────────────┤
+│  Duration: [4h]   Auto-refresh: 45s   Selected: 1   /search                  │
+└──────────────────────────────────────────────────────────────────────────────┘
 
-  ● Active   ◐ Expiring   ○ Inactive   ◌ Pending   ⚠ Tier 0
+  ● Active    ◐ Expiring    ○ Inactive    ◌ Pending    [T0] Tier 0
 ```
 
 ---
@@ -70,24 +70,24 @@ TODO: Add demo GIF showing:
 
 ### 🔐 Core Functionality
 
-| Feature | Description |
-|---------|-------------|
-| **Entra ID PIM Roles** | Activate/deactivate Azure AD privileged roles |
-| **PIM Groups** | Manage privileged access groups with linked roles |
-| **Azure RBAC** | Manage roles across Lighthouse (delegated) subscriptions |
-| **Batch Activation** | Activate multiple roles simultaneously |
-| **Justification** | Mandatory reason input for audit compliance |
+| Feature               | Description                                            |
+|-----------------------|--------------------------------------------------------|
+| **Entra ID PIM Roles**| Activate/deactivate Azure AD privileged roles          |
+| **PIM Groups**        | Manage privileged access groups with linked roles      |
+| **Azure RBAC**        | Manage roles across Lighthouse (delegated) subscriptions|
+| **Batch Activation**  | Activate multiple roles simultaneously                 |
+| **Justification**     | Mandatory reason input for audit compliance            |
 
 ### 🛡️ Security Tier Awareness
 
 PIM-TUI classifies every role by security tier, so you always know the blast radius:
 
-| Tier | Risk Level | Description | Visual |
-|------|------------|-------------|--------|
-| **Tier 0** | Critical | Control Plane - tenant-wide admin rights | 🔴 Red |
-| **Tier 1** | High | Data plane with significant access | 🟠 Orange |
-| **Tier 2** | Medium | Service support and management | 🟡 Yellow |
-| **Tier 3** | Low | Standard user-level access | 🟢 Green |
+| Tier       | Risk Level | Description                              | Visual    |
+|------------|------------|------------------------------------------|-----------|
+| **Tier 0** | Critical   | Control Plane - tenant-wide admin rights | 🔴 Red    |
+| **Tier 1** | High       | Data plane with significant access       | 🟠 Orange |
+| **Tier 2** | Medium     | Service support and management           | 🟡 Yellow |
+| **Tier 3** | Low        | Standard user-level access               | 🟢 Green  |
 
 - Attack path visualization for Tier 0 roles
 - Escalation risk warnings
@@ -128,13 +128,13 @@ go install github.com/seb07-cloud/pim-tui/cmd/pim-tui@latest
 
 Download from [Releases](https://github.com/seb07-cloud/pim-tui/releases):
 
-| Platform | Architecture | Download |
-|----------|--------------|----------|
-| Windows | x86_64 | `pim-tui-windows-amd64.exe` |
-| Linux | x86_64 | `pim-tui-linux-amd64` |
-| Linux | ARM64 | `pim-tui-linux-arm64` |
-| macOS | x86_64 | `pim-tui-darwin-amd64` |
-| macOS | ARM64 (Apple Silicon) | `pim-tui-darwin-arm64` |
+| Platform | Architecture          | Download                    |
+|----------|-----------------------|-----------------------------|
+| Windows  | x86_64                | `pim-tui-windows-amd64.exe` |
+| Linux    | x86_64                | `pim-tui-linux-amd64`       |
+| Linux    | ARM64                 | `pim-tui-linux-arm64`       |
+| macOS    | x86_64                | `pim-tui-darwin-amd64`      |
+| macOS    | ARM64 (Apple Silicon) | `pim-tui-darwin-arm64`      |
 
 **Build from Source:**
 ```bash
@@ -162,58 +162,58 @@ pim-tui
 <details>
 <summary><strong>Navigation</strong></summary>
 
-| Key | Action |
-|-----|--------|
-| `↑` / `k` | Move up |
-| `↓` / `j` | Move down |
-| `←` / `h` | Previous tab |
-| `→` / `l` | Next tab |
-| `Tab` | Cycle tabs |
-| `g` / `Home` | Jump to top |
-| `G` / `End` | Jump to bottom |
+| Key          | Action         |
+|--------------|----------------|
+| `↑` / `k`    | Move up        |
+| `↓` / `j`    | Move down      |
+| `←` / `h`    | Previous tab   |
+| `→` / `l`    | Next tab       |
+| `Tab`        | Cycle tabs     |
+| `g` / `Home` | Jump to top    |
+| `G` / `End`  | Jump to bottom |
 
 </details>
 
 <details>
 <summary><strong>Actions</strong></summary>
 
-| Key | Action |
-|-----|--------|
-| `Space` | Select/deselect item |
-| `Enter` | Activate selected roles |
+| Key            | Action                  |
+|----------------|-------------------------|
+| `Space`        | Select/deselect item    |
+| `Enter`        | Activate selected roles |
 | `x` / `Delete` | Deactivate active roles |
-| `y` / `Enter` | Confirm dialog |
-| `n` / `Esc` | Cancel dialog |
+| `y` / `Enter`  | Confirm dialog          |
+| `n` / `Esc`    | Cancel dialog           |
 
 </details>
 
 <details>
 <summary><strong>Duration & Settings</strong></summary>
 
-| Key | Action |
-|-----|--------|
-| `1` | Set duration to 1 hour |
+| Key | Action                  |
+|-----|-------------------------|
+| `1` | Set duration to 1 hour  |
 | `2` | Set duration to 2 hours |
 | `3` | Set duration to 4 hours |
 | `4` | Set duration to 8 hours |
-| `d` | Cycle through presets |
-| `a` | Toggle auto-refresh |
-| `v` | Cycle log level |
-| `r` | Manual refresh |
+| `d` | Cycle through presets   |
+| `a` | Toggle auto-refresh     |
+| `v` | Cycle log level         |
+| `r` | Manual refresh          |
 
 </details>
 
 <details>
 <summary><strong>Display & Export</strong></summary>
 
-| Key | Action |
-|-----|--------|
-| `?` | Show help |
-| `/` | Search/filter |
-| `t` | Open tree view |
-| `c` | Copy logs to clipboard |
+| Key | Action                    |
+|-----|---------------------------|
+| `?` | Show help                 |
+| `/` | Search/filter             |
+| `t` | Open tree view            |
+| `c` | Copy logs to clipboard    |
 | `e` | Export activation history |
-| `q` | Quit |
+| `q` | Quit                      |
 
 </details>
 
