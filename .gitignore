@@ -39,3 +39,6 @@ AGENTS.md
 
 # Release builds
 release/
+
+.venv
+/testing_env/
