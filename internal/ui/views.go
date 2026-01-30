@@ -337,10 +337,6 @@ func (m Model) renderHeaderCompact() string {
 // renderHeaderFull renders the header for Tier 4 (LG, width >= 130)
 // Two panels with logo - full implementation
 func (m Model) renderHeaderFull() string {
-	// For now, just use compact header until logo rendering is fixed
-	// TODO: Debug why logo gets truncated in JoinHorizontal
-	return m.renderHeaderCompact()
-
 	// Build info lines
 	var infoLines []string
 
