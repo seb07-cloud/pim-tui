@@ -661,17 +661,7 @@ func getRoleTierBadge(roleDefinitionID string) string {
 }
 
 func (m Model) listPanelWidth() int {
-	// Calculate outer panel width, then subtract border (2) and padding (2) for content width
-	outerWidth := (m.width - 8) * 9 / 20
-	return outerWidth - 4 // 4 = border (2) + padding (2)
-}
-
-func (m Model) detailPanelWidth() int {
-	// Calculate detail panel content width (right panel in main view)
-	totalWidth := m.width - 8
-	listPanelWidth := totalWidth * 9 / 20
-	outerWidth := totalWidth - listPanelWidth
-	return outerWidth - 4 // 4 = border (2) + padding (2)
+	return (m.width - 8) * 9 / 20
 }
 
 func renderCheckbox(selected bool) string {
@@ -884,7 +874,8 @@ func (m Model) renderSubscriptionItem(idx int, sub azure.LighthouseSubscription)
 	line := fmt.Sprintf("%s %s%s", statusIcon(subStatus), truncate(sub.DisplayName, 26), indicator)
 
 	if idx == m.lightCursor {
-		return cursorStyle.Render(line)
+		// Highlighted cursor style matching the color scheme
+		return cursorStyle.Padding(0, 1).Render(line)
 	}
 	return itemStyle.Render(line)
 }
