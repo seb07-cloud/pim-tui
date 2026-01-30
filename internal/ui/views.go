@@ -240,43 +240,113 @@ func (m Model) renderUnauthenticated() string {
 }
 
 func (m Model) renderHeader() string {
-	// Safety check for minimum width
+	// Absolute minimum - can't render anything useful
 	if m.width < 40 {
-		return dimStyle.Render(fmt.Sprintf("v%s (window too narrow)", m.version))
+		return dimStyle.Render(fmt.Sprintf("v%s", m.version))
 	}
 
-	// The ASCII logo needs ~55 chars width (49 chars + border/padding)
-	// Show logo only if we have enough width for both logo (59) and info (50) + margins (8)
-	minWidthForLogo := 120
-	showLogo := m.width >= minWidthForLogo
+	tier := m.getLayoutTier()
 
-	var logoBoxWidth, infoBoxWidth int
-	if showLogo {
-		// Two panels side by side: each has border (2) + padding (2) = 4 chars each = 8 total
-		totalWidth := m.width - 8
-		// Give logo box fixed width to ensure ASCII art fits (55 chars content + 4 border/padding)
-		logoBoxWidth = 59
-		infoBoxWidth = totalWidth - logoBoxWidth
-		// Safety: ensure info box has reasonable width
-		if infoBoxWidth < 45 {
-			// Fall back to no logo mode
-			showLogo = false
-			infoBoxWidth = m.width - 4
-		}
-	} else {
-		// Single panel: border (2) + padding (2) = 4 chars
-		infoBoxWidth = m.width - 4
+	switch tier {
+	case 4: // LG: Full layout with logo (width >= 120)
+		return m.renderHeaderFull()
+	case 3: // MD: Single panel, all info (width 80-119)
+		return m.renderHeaderCompact()
+	case 2: // SM: Single line essential (width 60-79)
+		return m.renderHeaderMinimal()
+	default: // XS: Version only (width < 60)
+		return m.renderHeaderTiny()
+	}
+}
+
+// renderHeaderTiny renders the header for Tier 1 (XS, width < 60)
+// Just version and maybe tenant name
+func (m Model) renderHeaderTiny() string {
+	if m.tenant != nil {
+		return dimStyle.Render(fmt.Sprintf("v%s │ %s", m.version, truncate(m.tenant.DisplayName, 30)))
+	}
+	return dimStyle.Render(fmt.Sprintf("v%s", m.version))
+}
+
+// renderHeaderMinimal renders the header for Tier 2 (SM, width 60-79)
+// Single line with tenant, user, version
+func (m Model) renderHeaderMinimal() string {
+	var parts []string
+	if m.tenant != nil {
+		parts = append(parts, activeBoldStyle.Render(truncate(m.tenant.DisplayName, 25)))
+	}
+	parts = append(parts, dimStyle.Render(fmt.Sprintf("v%s", m.version)))
+
+	// Add active count if any
+	activeRoles, activeGroups := m.countActiveItems()
+	if activeRoles+activeGroups > 0 {
+		parts = append(parts, activeStyle.Render(fmt.Sprintf("● %d active", activeRoles+activeGroups)))
 	}
 
-	// Ensure minimum width for panel
-	if infoBoxWidth < 30 {
-		infoBoxWidth = 30
+	return strings.Join(parts, " │ ")
+}
+
+// renderHeaderCompact renders the header for Tier 3 (MD, width 80-119)
+// Single panel with all info, no logo
+func (m Model) renderHeaderCompact() string {
+	// Use frame-aware width calculation
+	frameSize := panelStyle.GetHorizontalFrameSize()
+	contentWidth := m.width - 4 - frameSize // 4 for outer margin
+	if contentWidth < 30 {
+		contentWidth = 30
 	}
 
-	// Right box: Info - use shared styles
 	var infoLines []string
 
-	// Tenant Name and ID
+	if m.tenant != nil {
+		infoLines = append(infoLines, dimStyle.Render("Tenant: ")+activeBoldStyle.Render(m.tenant.DisplayName))
+		infoLines = append(infoLines, dimStyle.Render("User:   ")+detailValueStyle.Render(m.userEmail))
+	} else {
+		infoLines = append(infoLines, dimStyle.Render("Tenant: ")+detailValueStyle.Render("Connecting..."))
+	}
+
+	// Quick stats
+	activeRoles, activeGroups := m.countActiveItems()
+	if activeRoles+activeGroups > 0 {
+		activeBadge := lipgloss.NewStyle().
+			Background(colorActive).
+			Foreground(lipgloss.Color("#000000")).
+			Bold(true).
+			Padding(0, 1).
+			Render(fmt.Sprintf("● %d ACTIVE", activeRoles+activeGroups))
+		infoLines = append(infoLines, activeBadge)
+	}
+
+	// Counts line
+	badgeStyle := lipgloss.NewStyle().
+		Background(colorBorder).
+		Foreground(lipgloss.Color("#ffffff")).
+		Padding(0, 1)
+	countLine := badgeStyle.Render(fmt.Sprintf("🔐 %d", len(m.roles))) + " " +
+		badgeStyle.Render(fmt.Sprintf("👥 %d", len(m.groups))) + " " +
+		dimStyle.Render(fmt.Sprintf("v%s", m.version))
+	infoLines = append(infoLines, countLine)
+
+	infoContent := strings.Join(infoLines, "\n")
+	return panelStyle.Width(m.width - 4).Render(infoContent)
+}
+
+// renderHeaderFull renders the header for Tier 4 (LG, width >= 120)
+// Two panels with logo - full implementation
+func (m Model) renderHeaderFull() string {
+	// Calculate panel widths with frame awareness
+	totalWidth := m.width - 8 // Outer margins
+	logoBoxWidth := 59        // Fixed width for ASCII art (55 content + 4 frame)
+	infoBoxWidth := totalWidth - logoBoxWidth
+
+	// Safety check - if info box too narrow, fall back to compact
+	if infoBoxWidth < 45 {
+		return m.renderHeaderCompact()
+	}
+
+	// Build info lines
+	var infoLines []string
+
 	if m.tenant != nil {
 		infoLines = append(infoLines, dimStyle.Render("Tenant: ")+activeBoldStyle.Render(m.tenant.DisplayName))
 		infoLines = append(infoLines, dimStyle.Render("User:   ")+detailValueStyle.Render(m.userEmail))
@@ -288,11 +358,8 @@ func (m Model) renderHeader() string {
 	// Quick stats badges
 	activeRoles, activeGroups := m.countActiveItems()
 	expiringCount := m.countExpiringItems()
-
-	// Build badge line
 	var badges []string
 
-	// Active badge
 	if activeRoles+activeGroups > 0 {
 		activeBadge := lipgloss.NewStyle().
 			Background(colorActive).
@@ -303,7 +370,6 @@ func (m Model) renderHeader() string {
 		badges = append(badges, activeBadge)
 	}
 
-	// Expiring badge
 	if expiringCount > 0 {
 		expiringBadge := lipgloss.NewStyle().
 			Background(colorExpiring).
@@ -318,7 +384,7 @@ func (m Model) renderHeader() string {
 		infoLines = append(infoLines, strings.Join(badges, " "))
 	}
 
-	// Roles, Groups, and Subscriptions counts
+	// Resource counts
 	badgeStyle := lipgloss.NewStyle().
 		Background(colorBorder).
 		Foreground(lipgloss.Color("#ffffff")).
@@ -326,7 +392,6 @@ func (m Model) renderHeader() string {
 	rolesBadge := badgeStyle.Render(fmt.Sprintf("🔐 %d Roles", len(m.roles)))
 	groupsBadge := badgeStyle.Render(fmt.Sprintf("👥 %d Groups", len(m.groups)))
 
-	// Count subscriptions with eligible roles
 	subsWithRoles := 0
 	for _, sub := range m.lighthouse {
 		if len(sub.EligibleRoles) > 0 {
@@ -334,11 +399,9 @@ func (m Model) renderHeader() string {
 		}
 	}
 	subsBadge := badgeStyle.Render(fmt.Sprintf("☁ %d Subs", subsWithRoles))
-
-	// Extra spaces compensate for emoji width calculation differences
 	infoLines = append(infoLines, rolesBadge+" "+groupsBadge+" "+subsBadge+"   ")
 
-	// Add search indicator if active
+	// Search indicator
 	if m.searchActive {
 		infoLines = append(infoLines, detailLabelStyle.Render(fmt.Sprintf("🔍 \"%s\"", m.searchQuery)))
 	}
@@ -364,32 +427,20 @@ func (m Model) renderHeader() string {
 	infoLines = append(infoLines, refreshStr)
 	infoLines = append(infoLines, dimStyle.Render(fmt.Sprintf("v%s", m.version)))
 
-	infoContent := strings.Join(infoLines, "\n")
-
-	if showLogo {
-		// Logo has 6 lines - pad info content to match for consistent box heights
-		targetLines := 6
-		for len(infoLines) < targetLines {
-			infoLines = append(infoLines, "")
-		}
-		infoContent = strings.Join(infoLines, "\n")
-
-		infoBox := panelStyle.
-			Width(infoBoxWidth).
-			Render(infoContent)
-
-		logoBox := panelStyle.
-			Width(logoBoxWidth).
-			Align(lipgloss.Center, lipgloss.Center).
-			Render(highlightBoldStyle.Render(asciiLogo))
-		return lipgloss.JoinHorizontal(lipgloss.Top, logoBox, infoBox)
+	// Pad to match logo height (6 lines)
+	for len(infoLines) < 6 {
+		infoLines = append(infoLines, "")
 	}
 
-	infoBox := panelStyle.
-		Width(infoBoxWidth).
-		Render(infoContent)
+	infoContent := strings.Join(infoLines, "\n")
 
-	return infoBox
+	infoBox := panelStyle.Width(infoBoxWidth).Render(infoContent)
+	logoBox := panelStyle.
+		Width(logoBoxWidth).
+		Align(lipgloss.Center, lipgloss.Center).
+		Render(highlightBoldStyle.Render(asciiLogo))
+
+	return lipgloss.JoinHorizontal(lipgloss.Top, logoBox, infoBox)
 }
 
 func (m Model) renderMainView() string {
