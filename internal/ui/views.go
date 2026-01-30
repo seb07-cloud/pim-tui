@@ -22,7 +22,7 @@ const (
 	BreakpointXS = 60  // Tier 1: Minimal - single panel, essential info only
 	BreakpointSM = 80  // Tier 2: Compact - single panel with details
 	BreakpointMD = 100 // Tier 3: Normal - two panels side by side
-	BreakpointLG = 120 // Tier 4: Full - two panels with logo/decorations
+	BreakpointLG = 130 // Tier 4: Full - two panels with logo/decorations (increased for Unicode width)
 	BreakpointXL = 160 // Tier 5: Luxury - all features, extra spacing
 )
 
@@ -336,11 +336,11 @@ func (m Model) renderHeaderCompact() string {
 func (m Model) renderHeaderFull() string {
 	// Calculate panel widths with frame awareness
 	totalWidth := m.width - 8 // Outer margins
-	logoBoxWidth := 59        // Fixed width for ASCII art (55 content + 4 frame)
+	logoBoxWidth := 70        // Increased for Unicode block characters (wider rendering in some terminals)
 	infoBoxWidth := totalWidth - logoBoxWidth
 
 	// Safety check - if info box too narrow, fall back to compact
-	if infoBoxWidth < 45 {
+	if infoBoxWidth < 50 {
 		return m.renderHeaderCompact()
 	}
 
