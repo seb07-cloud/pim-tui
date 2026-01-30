@@ -1180,7 +1180,12 @@ func (m Model) renderSubscriptionDetail() string {
 }
 
 func (m Model) renderLogs() string {
+	// Use smaller log panel when logo isn't shown (tiers 1-3)
+	// This gives more space to main content on narrow terminals
 	logHeight := 8
+	if m.getLayoutTier() < 4 {
+		logHeight = 3
+	}
 	// Match the width of two side-by-side panels in header/main view
 	width := m.width - 6
 
