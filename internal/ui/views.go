@@ -661,7 +661,9 @@ func getRoleTierBadge(roleDefinitionID string) string {
 }
 
 func (m Model) listPanelWidth() int {
-	return (m.width - 8) * 9 / 20
+	// Calculate outer panel width, then subtract border (2) and padding (2) for content width
+	outerWidth := (m.width - 8) * 9 / 20
+	return outerWidth - 4 // 4 = border (2) + padding (2)
 }
 
 func renderCheckbox(selected bool) string {
