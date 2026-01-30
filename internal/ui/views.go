@@ -393,15 +393,71 @@ func (m Model) renderHeader() string {
 }
 
 func (m Model) renderMainView() string {
+	tier := m.getLayoutTier()
+
+	// For tiers 1-2, render single-panel view
+	if tier <= 2 {
+		return m.renderMainViewCompact()
+	}
+
+	// For tiers 3+, render two-panel view
+	return m.renderMainViewFull()
+}
+
+func (m Model) renderMainViewCompact() string {
+	// Single panel layout for narrow terminals
+	// Shows either list OR detail based on state/selection
 	tabBar := m.renderTabBar()
 
-	// Panel dimensions
-	totalWidth := m.width - 8
-	listPanelWidth := totalWidth * 9 / 20
-	detailPanelWidth := totalWidth - listPanelWidth
+	panelWidth := m.width - 4
 	panelHeight := m.height - 25
 
-	// Select content based on active tab with enhanced icons
+	// Select content based on active tab
+	var title, content string
+	switch m.activeTab {
+	case TabRoles:
+		title = "🔐 PIM Roles"
+		content = m.renderRolesList(panelHeight - 2)
+	case TabGroups:
+		title = "👥 PIM Groups"
+		content = m.renderGroupsList(panelHeight - 2)
+	case TabSubscriptions:
+		title = "📑 Subscriptions"
+		if m.searchActive && m.searchQuery != "" {
+			title = fmt.Sprintf("📑 Subs [🔍 %s]", m.searchQuery)
+		}
+		content = m.renderSubscriptionsList(max(panelHeight-2, 1))
+	}
+
+	prominentTitle := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("#ffffff")).
+		Background(colorHighlight).
+		Padding(0, 2).
+		Render(title)
+
+	panel := activePanelStyle.Width(panelWidth).Height(panelHeight).Render(
+		prominentTitle + "\n" + content,
+	)
+
+	return lipgloss.JoinVertical(lipgloss.Left, tabBar, panel)
+}
+
+func (m Model) renderMainViewFull() string {
+	// Two-panel layout for wider terminals
+	tabBar := m.renderTabBar()
+
+	// Use frame-aware width helpers
+	listWidth := m.listPanelWidth()
+	detailWidth := m.detailPanelWidth()
+	panelHeight := m.height - 25
+
+	// Safety check - if widths are invalid, fall back to compact
+	if listWidth <= 0 || detailWidth <= 0 {
+		return m.renderMainViewCompact()
+	}
+
+	// Select content based on active tab
 	var title, listContent, detailContent string
 	switch m.activeTab {
 	case TabRoles:
@@ -414,7 +470,6 @@ func (m Model) renderMainView() string {
 		detailContent = m.renderGroupDetail()
 	case TabSubscriptions:
 		title = "📑 Subscriptions"
-		// Show inline search filter if active
 		if m.searchActive && m.searchQuery != "" {
 			title = fmt.Sprintf("📑 Subscriptions [🔍 %s]", m.searchQuery)
 		}
@@ -422,7 +477,6 @@ func (m Model) renderMainView() string {
 		detailContent = m.renderSubscriptionDetail()
 	}
 
-	// Prominent panel title with background
 	prominentTitle := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(lipgloss.Color("#ffffff")).
@@ -430,10 +484,10 @@ func (m Model) renderMainView() string {
 		Padding(0, 2).
 		Render(title)
 
-	listPanel := activePanelStyle.Width(listPanelWidth).Height(panelHeight).Render(
+	listPanel := activePanelStyle.Width(listWidth).Height(panelHeight).Render(
 		prominentTitle + "\n" + listContent,
 	)
-	detailPanel := panelStyle.Width(detailPanelWidth).Height(panelHeight).Render(detailContent)
+	detailPanel := panelStyle.Width(detailWidth).Height(panelHeight).Render(detailContent)
 
 	return lipgloss.JoinVertical(lipgloss.Left, tabBar, lipgloss.JoinHorizontal(lipgloss.Top, listPanel, detailPanel))
 }
