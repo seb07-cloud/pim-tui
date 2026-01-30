@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/seb07-cloud/pim-tui/internal/azure"
 )
 
@@ -675,8 +676,10 @@ func (m Model) renderListItem(idx int, name string, status azure.ActivationStatu
 	// Format: "[x] ● Name" - Prefix: checkbox(3) + space(1) + icon(1) + space(1) = 6
 	nameWidth := max(m.listPanelWidth()-6, 10)
 
-	if len(name) > nameWidth {
-		name = name[:nameWidth-3] + "..."
+	// Use ANSI-aware width check and truncation to handle styled text (like tier badges)
+	// Note: ansi.Truncate includes the tail ("...") in the total width
+	if lipgloss.Width(name) > nameWidth {
+		name = ansi.Truncate(name, nameWidth, "...")
 	}
 
 	// Apply search highlighting if search is active
@@ -1600,8 +1603,12 @@ func (m Model) renderListItemWithExpiry(idx int, name string, status azure.Activ
 	}
 
 	nameWidth := max(baseWidth-expiryWidth, 10)
-	if len(name) > nameWidth {
-		name = name[:nameWidth-3] + "..."
+	// Use ANSI-aware width check and truncation to handle styled text (like tier badges)
+	// lipgloss.Width() returns visible character count, ignoring ANSI escape sequences
+	if lipgloss.Width(name) > nameWidth {
+		// ansi.Truncate properly handles ANSI escape sequences, preserving and closing them
+		// Note: ansi.Truncate includes the tail ("...") in the total width
+		name = ansi.Truncate(name, nameWidth, "...")
 	}
 
 	// Apply search highlighting if search is active
@@ -1735,10 +1742,12 @@ func (m Model) refreshCountdown() (remaining int, hasCountdown bool) {
 }
 
 func truncate(s string, max int) string {
-	if len(s) <= max {
+	// Use ANSI-aware width check and truncation to handle styled text
+	if lipgloss.Width(s) <= max {
 		return s
 	}
-	return s[:max-3] + "..."
+	// ansi.Truncate includes the tail in the total width
+	return ansi.Truncate(s, max, "...")
 }
 
 func (m Model) dialogWidth() int {
