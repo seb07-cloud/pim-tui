@@ -1257,8 +1257,14 @@ func (m *Model) toggleSelection() {
 		}
 	case TabRoles:
 		m.selectedRoles[m.rolesCursor] = !m.selectedRoles[m.rolesCursor]
+		if !m.selectedRoles[m.rolesCursor] {
+			delete(m.selectedRoles, m.rolesCursor)
+		}
 	case TabGroups:
 		m.selectedGroups[m.groupsCursor] = !m.selectedGroups[m.groupsCursor]
+		if !m.selectedGroups[m.groupsCursor] {
+			delete(m.selectedGroups, m.groupsCursor)
+		}
 	}
 }
 
@@ -1287,14 +1293,14 @@ func (m *Model) initiateActivation() (tea.Model, tea.Cmd) {
 			}
 		}
 	case TabRoles:
-		for idx := range m.selectedRoles {
-			if idx < len(m.roles) {
+		for idx, selected := range m.selectedRoles {
+			if selected && idx < len(m.roles) {
 				m.pendingActivations = append(m.pendingActivations, m.roles[idx])
 			}
 		}
 	case TabGroups:
-		for idx := range m.selectedGroups {
-			if idx < len(m.groups) {
+		for idx, selected := range m.selectedGroups {
+			if selected && idx < len(m.groups) {
 				m.pendingActivations = append(m.pendingActivations, m.groups[idx])
 			}
 		}
@@ -1365,14 +1371,14 @@ func (m *Model) initiateDeactivation() (tea.Model, tea.Cmd) {
 
 	switch m.activeTab {
 	case TabRoles:
-		for idx := range m.selectedRoles {
-			if idx < len(m.roles) && m.roles[idx].Status.IsActive() {
+		for idx, selected := range m.selectedRoles {
+			if selected && idx < len(m.roles) && m.roles[idx].Status.IsActive() {
 				m.pendingDeactivations = append(m.pendingDeactivations, m.roles[idx])
 			}
 		}
 	case TabGroups:
-		for idx := range m.selectedGroups {
-			if idx < len(m.groups) && m.groups[idx].Status.IsActive() {
+		for idx, selected := range m.selectedGroups {
+			if selected && idx < len(m.groups) && m.groups[idx].Status.IsActive() {
 				m.pendingDeactivations = append(m.pendingDeactivations, m.groups[idx])
 			}
 		}
@@ -1381,8 +1387,8 @@ func (m *Model) initiateDeactivation() (tea.Model, tea.Cmd) {
 		for subID, roleSelections := range m.selectedSubRoles {
 			for _, sub := range m.lighthouse {
 				if sub.ID == subID {
-					for roleIdx := range roleSelections {
-						if roleIdx < len(sub.EligibleRoles) && sub.EligibleRoles[roleIdx].Status.IsActive() {
+					for roleIdx, selected := range roleSelections {
+						if selected && roleIdx < len(sub.EligibleRoles) && sub.EligibleRoles[roleIdx].Status.IsActive() {
 							m.pendingDeactivations = append(m.pendingDeactivations, SubscriptionRoleActivation{
 								SubscriptionID:   sub.ID,
 								SubscriptionName: sub.DisplayName,
