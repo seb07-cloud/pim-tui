@@ -13,7 +13,7 @@ import (
 	"github.com/seb07-cloud/pim-tui/internal/ui"
 )
 
-var version = "1.2.2"
+var version = "1.3.0"
 
 func main() {
 	cfg, err := config.Load()
