@@ -801,7 +801,8 @@ func renderCheckbox(selected bool) string {
 
 func (m Model) renderListItem(idx int, name string, status azure.ActivationStatus, selected, isCursor bool) string {
 	// Format: "[x] ● Name" - Prefix: checkbox(3) + space(1) + icon(1) + space(1) = 6
-	nameWidth := max(m.listPanelWidth()-6, 10)
+	// Use content width (panel width minus frame) for accurate calculation
+	nameWidth := max(m.listPanelContentWidth()-6, 10)
 
 	// Use ANSI-aware width check and truncation to handle styled text (like tier badges)
 	// Note: ansi.Truncate includes the tail ("...") in the total width
@@ -1717,7 +1718,8 @@ func (m Model) renderItemListWithExpiry(height int, itemType string, count int, 
 // renderListItemWithExpiry renders a list item with optional compact expiry time
 func (m Model) renderListItemWithExpiry(idx int, name string, status azure.ActivationStatus, selected, isCursor bool, expiresAt *time.Time) string {
 	// Calculate available width for name (accounting for expiry suffix)
-	baseWidth := m.listPanelWidth() - 6 // checkbox + status icon
+	// Use content width to account for panel's border/padding
+	baseWidth := m.listPanelContentWidth() - 6 // checkbox + status icon
 	expiryWidth := 0
 	var expirySuffix string
 
