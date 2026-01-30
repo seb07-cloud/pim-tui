@@ -461,7 +461,7 @@ func (m Model) renderMainViewCompact() string {
 	tabBar := m.renderTabBar()
 
 	panelWidth := m.width - 4
-	panelHeight := m.height - 25
+	panelHeight := m.getMainPanelHeight()
 
 	// Select content based on active tab
 	// List height = panel content area (panelHeight - 2 for borders) - 1 for title
@@ -506,7 +506,7 @@ func (m Model) renderMainViewFull() string {
 	// Use frame-aware width helpers
 	listWidth := m.listPanelWidth()
 	detailWidth := m.detailPanelWidth()
-	panelHeight := m.height - 25
+	panelHeight := m.getMainPanelHeight()
 
 	// Safety check - if widths are invalid, fall back to compact
 	if listWidth <= 0 || detailWidth <= 0 {
@@ -1969,6 +1969,25 @@ func (m Model) getLayoutTier() int {
 		return 2
 	default:
 		return 1
+	}
+}
+
+// getMainPanelHeight returns the fixed height for main content panels based on tier.
+// Fixed heights ensure consistent rendering at each breakpoint.
+// This accounts for: header, tab bar, log panel, status bar.
+// Each tier has different header/log sizes, so panel height varies.
+func (m Model) getMainPanelHeight() int {
+	tier := m.getLayoutTier()
+
+	switch tier {
+	case 4: // LG (120+): Full header (~10 lines) + 8-line logs + status (3)
+		return max(m.height-21, 10)
+	case 3: // MD (80-119): Compact header (~6 lines) + 3-line logs + status (3)
+		return max(m.height-12, 10)
+	case 2: // SM (60-79): Minimal header (~2 lines) + 3-line logs + status (3)
+		return max(m.height-8, 8)
+	default: // XS (<60): Tiny header (~1 line) + 3-line logs + status (3)
+		return max(m.height-7, 6)
 	}
 }
 
