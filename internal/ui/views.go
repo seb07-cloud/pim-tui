@@ -464,20 +464,25 @@ func (m Model) renderMainViewCompact() string {
 	panelHeight := m.height - 25
 
 	// Select content based on active tab
+	// List height = panel content area (panelHeight - 2 for borders) - 1 for title
+	listHeight := panelHeight - 3
+	if listHeight < 1 {
+		listHeight = 1
+	}
 	var title, content string
 	switch m.activeTab {
 	case TabRoles:
 		title = "🔐 PIM Roles"
-		content = m.renderRolesList(panelHeight - 2)
+		content = m.renderRolesList(listHeight)
 	case TabGroups:
 		title = "👥 PIM Groups"
-		content = m.renderGroupsList(panelHeight - 2)
+		content = m.renderGroupsList(listHeight)
 	case TabSubscriptions:
 		title = "📑 Subscriptions"
 		if m.searchActive && m.searchQuery != "" {
 			title = fmt.Sprintf("📑 Subs [🔍 %s]", m.searchQuery)
 		}
-		content = m.renderSubscriptionsList(max(panelHeight-2, 1))
+		content = m.renderSubscriptionsList(listHeight)
 	}
 
 	prominentTitle := lipgloss.NewStyle().
@@ -509,22 +514,27 @@ func (m Model) renderMainViewFull() string {
 	}
 
 	// Select content based on active tab
+	// List height = panel content area (panelHeight - 2 for borders) - 1 for title
+	listHeight := panelHeight - 3
+	if listHeight < 1 {
+		listHeight = 1
+	}
 	var title, listContent, detailContent string
 	switch m.activeTab {
 	case TabRoles:
 		title = "🔐 PIM Roles"
-		listContent = m.renderRolesList(panelHeight - 2)
+		listContent = m.renderRolesList(listHeight)
 		detailContent = m.renderRoleDetail()
 	case TabGroups:
 		title = "👥 PIM Groups"
-		listContent = m.renderGroupsList(panelHeight - 2)
+		listContent = m.renderGroupsList(listHeight)
 		detailContent = m.renderGroupDetail()
 	case TabSubscriptions:
 		title = "📑 Subscriptions"
 		if m.searchActive && m.searchQuery != "" {
 			title = fmt.Sprintf("📑 Subscriptions [🔍 %s]", m.searchQuery)
 		}
-		listContent = m.renderSubscriptionsList(max(panelHeight-2, 1))
+		listContent = m.renderSubscriptionsList(listHeight)
 		detailContent = m.renderSubscriptionDetail()
 	}
 

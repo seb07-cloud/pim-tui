@@ -1134,8 +1134,9 @@ func (m *Model) getCurrentSubscription() *azure.LighthouseSubscription {
 
 func (m *Model) moveCursor(delta int) {
 	// Calculate approximate display height for scroll adjustment
-	// Panel height is m.height - 25 (header, tabs, logs, status), minus 3 for panel chrome
-	displayHeight := m.height - 28
+	// Panel height is m.height - 25 (header, tabs, logs, status)
+	// Minus 2 for borders, minus 1 for title, minus 1 for scroll indicator = -4
+	displayHeight := m.height - 29
 	if displayHeight < 5 {
 		displayHeight = 5 // Minimum reasonable height
 	}
