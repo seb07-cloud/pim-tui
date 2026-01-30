@@ -110,11 +110,19 @@ func (c *Client) GetActiveRoles(ctx context.Context) (map[string]*time.Time, err
 
 	active := make(map[string]*time.Time)
 	for _, r := range allAssignments {
+		// Always add active assignments to the map
+		// Parse EndDateTime if present, otherwise use nil (active but unknown expiry)
 		if r.EndDateTime != "" {
 			t, err := time.Parse(time.RFC3339, r.EndDateTime)
 			if err == nil {
 				active[r.RoleDefinition.ID] = &t
+			} else {
+				// Parse failed but assignment is active - mark as active with no expiry
+				active[r.RoleDefinition.ID] = nil
 			}
+		} else {
+			// No EndDateTime but assignment is active (e.g., permanent or pending)
+			active[r.RoleDefinition.ID] = nil
 		}
 	}
 
@@ -148,8 +156,14 @@ func (c *Client) GetRoles(ctx context.Context) ([]Role, error) {
 
 	for i := range eligible {
 		if expiry, ok := active[eligible[i].RoleDefinitionID]; ok {
+			// Found in active map - mark as active
 			eligible[i].ExpiresAt = expiry
-			eligible[i].Status = StatusFromExpiry(expiry)
+			if expiry != nil {
+				eligible[i].Status = StatusFromExpiry(expiry)
+			} else {
+				// Active but no expiry info - mark as Active
+				eligible[i].Status = StatusActive
+			}
 		}
 	}
 
