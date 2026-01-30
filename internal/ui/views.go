@@ -331,13 +331,12 @@ func (m Model) renderHeaderCompact() string {
 	return panelStyle.Width(m.width - 4).Render(infoContent)
 }
 
-// renderHeaderFull renders the header for Tier 4 (LG, width >= 120)
+// renderHeaderFull renders the header for Tier 4 (LG, width >= 130)
 // Two panels with logo - full implementation
 func (m Model) renderHeaderFull() string {
-	// Safety check - need at least 100 chars for logo + info panels
-	if m.width < 100 {
-		return m.renderHeaderCompact()
-	}
+	// For now, just use compact header until logo rendering is fixed
+	// TODO: Debug why logo gets truncated in JoinHorizontal
+	return m.renderHeaderCompact()
 
 	// Build info lines
 	var infoLines []string
