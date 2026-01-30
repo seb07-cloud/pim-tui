@@ -10,12 +10,12 @@ import (
 	"github.com/seb07-cloud/pim-tui/internal/azure"
 )
 
-const asciiLogo = `
- ____  ___ __  __   _____ _   _ ___
-|  _ \|_ _|  \/  | |_   _| | | |_ _|
-| |_) || || |\/| |   | | | | | || |
-|  __/ | || |  | |   | | | |_| || |
-|_|   |___|_|  |_|   |_|  \___/|___|`
+const asciiLogo = ` ██████╗ ██╗███╗   ███╗    ████████╗██╗   ██╗██╗
+ ██╔══██╗██║████╗ ████║    ╚══██╔══╝██║   ██║██║
+ ██████╔╝██║██╔████╔██║       ██║   ██║   ██║██║
+ ██╔═══╝ ██║██║╚██╔╝██║       ██║   ██║   ██║██║
+ ██║     ██║██║ ╚═╝ ██║       ██║   ╚██████╔╝██║
+ ╚═╝     ╚═╝╚═╝     ╚═╝       ╚═╝    ╚═════╝ ╚═╝`
 
 // Responsive breakpoints for layout tiers
 const (
@@ -1984,15 +1984,18 @@ func (m Model) getLayoutTier() int {
 func (m Model) getMainPanelHeight() int {
 	tier := m.getLayoutTier()
 
+	// Heights: header + tab bar (3) + logs + status bar (3)
+	// Compact header = 6 lines, Minimal = 2 lines, Tiny = 1 line
+	// Logs: tier 4 = 8 lines, tiers 1-3 = 5 lines
 	switch tier {
-	case 4: // LG (120+): Full header (~10 lines) + 8-line logs + status (3)
-		return max(m.height-21, 10)
-	case 3: // MD (80-119): Compact header (~6 lines) + 5-line logs + status (3)
-		return max(m.height-14, 10)
-	case 2: // SM (60-79): Minimal header (~2 lines) + 5-line logs + status (3)
-		return max(m.height-10, 8)
-	default: // XS (<60): Tiny header (~1 line) + 5-line logs + status (3)
-		return max(m.height-9, 6)
+	case 4: // LG (130+): Compact header (6) + tab (3) + logs (8) + status (3) = 20
+		return max(m.height-20, 10)
+	case 3: // MD (80-129): Compact header (6) + tab (3) + logs (5) + status (3) = 17
+		return max(m.height-17, 10)
+	case 2: // SM (60-79): Minimal header (2) + tab (3) + logs (5) + status (3) = 13
+		return max(m.height-13, 8)
+	default: // XS (<60): Tiny header (1) + tab (3) + logs (5) + status (3) = 12
+		return max(m.height-12, 6)
 	}
 }
 
