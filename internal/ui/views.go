@@ -80,9 +80,10 @@ func (m Model) View() string {
 	// Status bar
 	sections = append(sections, m.renderStatusBar())
 
-	// Join all sections and ensure output fills terminal to prevent ghost lines
+	// Join all sections vertically
 	content := lipgloss.JoinVertical(lipgloss.Left, sections...)
-	return lipgloss.NewStyle().Width(m.width).Height(m.height).Render(content)
+	// Only constrain width, let height be natural to avoid truncation
+	return lipgloss.NewStyle().Width(m.width).Render(content)
 }
 
 func (m Model) renderLoading() string {
