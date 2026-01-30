@@ -17,6 +17,15 @@ const asciiLogo = ` ██████╗ ██╗███╗   ███╗  
  ██║     ██║██║ ╚═╝ ██║       ██║   ╚██████╔╝██║
  ╚═╝     ╚═╝╚═╝     ╚═╝       ╚═╝    ╚═════╝ ╚═╝`
 
+// Responsive breakpoints for layout tiers
+const (
+	BreakpointXS = 60  // Tier 1: Minimal - single panel, essential info only
+	BreakpointSM = 80  // Tier 2: Compact - single panel with details
+	BreakpointMD = 100 // Tier 3: Normal - two panels side by side
+	BreakpointLG = 120 // Tier 4: Full - two panels with logo/decorations
+	BreakpointXL = 160 // Tier 5: Luxury - all features, extra spacing
+)
+
 func (m Model) View() string {
 	if m.width == 0 {
 		return "Loading..."
@@ -231,21 +240,37 @@ func (m Model) renderUnauthenticated() string {
 }
 
 func (m Model) renderHeader() string {
+	// Safety check for minimum width
+	if m.width < 40 {
+		return dimStyle.Render(fmt.Sprintf("v%s (window too narrow)", m.version))
+	}
+
 	// The ASCII logo needs ~55 chars width (49 chars + border/padding)
-	// Only show logo if we have at least 110 chars total width
-	minWidthForLogo := 110
+	// Show logo only if we have enough width for both logo (59) and info (50) + margins (8)
+	minWidthForLogo := 120
 	showLogo := m.width >= minWidthForLogo
 
 	var logoBoxWidth, infoBoxWidth int
 	if showLogo {
-		// Two panels side by side: each has border (2) + padding (2) = 4 chars
+		// Two panels side by side: each has border (2) + padding (2) = 4 chars each = 8 total
 		totalWidth := m.width - 8
-		// Use same width as list panel in main view (45%)
-		logoBoxWidth = totalWidth * 9 / 20
+		// Give logo box fixed width to ensure ASCII art fits (55 chars content + 4 border/padding)
+		logoBoxWidth = 59
 		infoBoxWidth = totalWidth - logoBoxWidth
+		// Safety: ensure info box has reasonable width
+		if infoBoxWidth < 45 {
+			// Fall back to no logo mode
+			showLogo = false
+			infoBoxWidth = m.width - 4
+		}
 	} else {
 		// Single panel: border (2) + padding (2) = 4 chars
 		infoBoxWidth = m.width - 4
+	}
+
+	// Ensure minimum width for panel
+	if infoBoxWidth < 30 {
+		infoBoxWidth = 30
 	}
 
 	// Right box: Info - use shared styles
@@ -1756,6 +1781,24 @@ func (m Model) dialogWidth() int {
 
 func (m Model) dialogHeight() int {
 	return m.height - 6
+}
+
+// getLayoutTier returns the current layout tier based on terminal width.
+// Tier 1 (XS): < 60 - minimal, single column
+// Tier 2 (SM): 60-79 - compact, single panel
+// Tier 3 (MD): 80-99 - normal, two panels
+// Tier 4 (LG): 100+ - full features (includes XL at 160+)
+func (m Model) getLayoutTier() int {
+	switch {
+	case m.width >= BreakpointLG:
+		return 4
+	case m.width >= BreakpointMD:
+		return 3
+	case m.width >= BreakpointSM:
+		return 2
+	default:
+		return 1
+	}
 }
 
 func (m Model) durationStr() string {
