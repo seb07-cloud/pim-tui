@@ -686,8 +686,56 @@ func getRoleTierBadge(roleDefinitionID string) string {
 	return ""
 }
 
+// listPanelWidth returns the width for the list panel, accounting for frame sizes.
+// This is the OUTER width of the panel (including borders/padding).
 func (m Model) listPanelWidth() int {
-	return (m.width - 8) * 9 / 20
+	tier := m.getLayoutTier()
+
+	// For small screens (tier 1-2), use full width
+	if tier <= 2 {
+		return m.width - 4 // Just outer margins
+	}
+
+	// For tier 3+, use 45% of available width for list panel
+	// Available = total - outer margins (4) - gap between panels (4)
+	available := m.width - 8
+	listWidth := available * 9 / 20 // ~45%
+
+	// Ensure minimum usable width (30 for content + frame)
+	minWidth := 30 + activePanelStyle.GetHorizontalFrameSize()
+	if listWidth < minWidth {
+		listWidth = minWidth
+	}
+
+	return listWidth
+}
+
+// listPanelContentWidth returns the width available for content inside the list panel.
+// This accounts for the panel's border and padding.
+func (m Model) listPanelContentWidth() int {
+	panelWidth := m.listPanelWidth()
+	frameSize := activePanelStyle.GetHorizontalFrameSize()
+	contentWidth := panelWidth - frameSize
+
+	// Ensure minimum content width
+	if contentWidth < 20 {
+		contentWidth = 20
+	}
+	return contentWidth
+}
+
+// detailPanelWidth returns the width for the detail panel.
+func (m Model) detailPanelWidth() int {
+	tier := m.getLayoutTier()
+
+	// For small screens (tier 1-2), use full width
+	if tier <= 2 {
+		return m.width - 4
+	}
+
+	// For tier 3+, detail panel gets remaining width after list panel
+	available := m.width - 8
+	return available - m.listPanelWidth()
 }
 
 func renderCheckbox(selected bool) string {
