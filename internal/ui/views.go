@@ -82,8 +82,10 @@ func (m Model) View() string {
 
 	// Join all sections vertically
 	content := lipgloss.JoinVertical(lipgloss.Left, sections...)
-	// Only constrain width, let height be natural to avoid truncation
-	return lipgloss.NewStyle().Width(m.width).Render(content)
+	// Constrain width and use MaxHeight to prevent terminal overflow
+	// When content exceeds terminal height, the terminal scrolls and cuts the top
+	// MaxHeight will truncate content that exceeds the terminal height
+	return lipgloss.NewStyle().Width(m.width).MaxHeight(m.height).Render(content)
 }
 
 func (m Model) renderLoading() string {
@@ -1982,21 +1984,26 @@ func (m Model) getLayoutTier() int {
 // Fixed heights ensure consistent rendering at each breakpoint.
 // This accounts for: header, tab bar, log panel, status bar.
 // Each tier has different header/log sizes, so panel height varies.
+//
+// Height breakdown (including borders/frames):
+// - Header compact (panelStyle): 4 content + 2 border = 6 lines
+// - Header minimal: 1 line (no border)
+// - Header tiny: 1 line (no border)
+// - Tab bar: tabs(2 with border) + underline = 3 lines
+// - Log panel (logPanelStyle): content + 2 border
+// - Status bar (helpStyle): 2 lines (no border)
 func (m Model) getMainPanelHeight() int {
 	tier := m.getLayoutTier()
 
-	// Heights: header + tab bar (3) + logs + status bar (3)
-	// Compact header = 6 lines, Minimal = 2 lines, Tiny = 1 line
-	// Logs: tier 4 = 8 lines, tiers 1-3 = 5 lines
 	switch tier {
-	case 4: // LG (130+): Compact header (6) + tab (3) + logs (8) + status (3) = 20
-		return max(m.height-20, 10)
-	case 3: // MD (80-129): Compact header (6) + tab (3) + logs (5) + status (3) = 17
-		return max(m.height-17, 10)
-	case 2: // SM (60-79): Minimal header (2) + tab (3) + logs (5) + status (3) = 13
+	case 4: // LG (130+): Header(6) + Tab(3) + Logs(8+2=10) + Status(2) = 21
+		return max(m.height-21, 10)
+	case 3: // MD (80-129): Header(6) + Tab(3) + Logs(5+2=7) + Status(2) = 18
+		return max(m.height-18, 10)
+	case 2: // SM (60-79): Header(1) + Tab(3) + Logs(5+2=7) + Status(2) = 13
 		return max(m.height-13, 8)
-	default: // XS (<60): Tiny header (1) + tab (3) + logs (5) + status (3) = 12
-		return max(m.height-12, 6)
+	default: // XS (<60): Header(1) + Tab(3) + Logs(5+2=7) + Status(2) = 13
+		return max(m.height-13, 6)
 	}
 }
 
