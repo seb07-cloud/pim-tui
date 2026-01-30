@@ -1182,9 +1182,10 @@ func (m Model) renderSubscriptionDetail() string {
 func (m Model) renderLogs() string {
 	// Use smaller log panel when logo isn't shown (tiers 1-3)
 	// This gives more space to main content on narrow terminals
-	logHeight := 8
+	// logHeight includes: header (1) + separator (1) + message lines
+	logHeight := 8 // Tier 4: 6 log messages
 	if m.getLayoutTier() < 4 {
-		logHeight = 3
+		logHeight = 5 // Tiers 1-3: 3 log messages
 	}
 	// Match the width of two side-by-side panels in header/main view
 	width := m.width - 6
@@ -1982,12 +1983,12 @@ func (m Model) getMainPanelHeight() int {
 	switch tier {
 	case 4: // LG (120+): Full header (~10 lines) + 8-line logs + status (3)
 		return max(m.height-21, 10)
-	case 3: // MD (80-119): Compact header (~6 lines) + 3-line logs + status (3)
-		return max(m.height-12, 10)
-	case 2: // SM (60-79): Minimal header (~2 lines) + 3-line logs + status (3)
-		return max(m.height-8, 8)
-	default: // XS (<60): Tiny header (~1 line) + 3-line logs + status (3)
-		return max(m.height-7, 6)
+	case 3: // MD (80-119): Compact header (~6 lines) + 5-line logs + status (3)
+		return max(m.height-14, 10)
+	case 2: // SM (60-79): Minimal header (~2 lines) + 5-line logs + status (3)
+		return max(m.height-10, 8)
+	default: // XS (<60): Tiny header (~1 line) + 5-line logs + status (3)
+		return max(m.height-9, 6)
 	}
 }
 
