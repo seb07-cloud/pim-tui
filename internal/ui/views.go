@@ -334,13 +334,8 @@ func (m Model) renderHeaderCompact() string {
 // renderHeaderFull renders the header for Tier 4 (LG, width >= 120)
 // Two panels with logo - full implementation
 func (m Model) renderHeaderFull() string {
-	// Calculate panel widths with frame awareness
-	totalWidth := m.width - 8 // Outer margins
-	logoBoxWidth := 70        // Increased for Unicode block characters (wider rendering in some terminals)
-	infoBoxWidth := totalWidth - logoBoxWidth
-
-	// Safety check - if info box too narrow, fall back to compact
-	if infoBoxWidth < 50 {
+	// Safety check - need at least 100 chars for logo + info panels
+	if m.width < 100 {
 		return m.renderHeaderCompact()
 	}
 
@@ -434,11 +429,21 @@ func (m Model) renderHeaderFull() string {
 
 	infoContent := strings.Join(infoLines, "\n")
 
-	infoBox := panelStyle.Width(infoBoxWidth).Render(infoContent)
-	logoBox := panelStyle.
-		Width(logoBoxWidth).
-		Align(lipgloss.Center, lipgloss.Center).
-		Render(highlightBoldStyle.Render(asciiLogo))
+	// Render logo without width constraint - let it auto-size to content
+	// This avoids truncation issues with Unicode block characters
+	logoContent := highlightBoldStyle.Render(asciiLogo)
+	logoBox := panelStyle.Render(logoContent)
+
+	// Calculate actual logo box width and adjust info box accordingly
+	actualLogoWidth := lipgloss.Width(logoBox)
+	actualInfoWidth := m.width - 8 - actualLogoWidth
+
+	// If not enough space for info, fall back to compact
+	if actualInfoWidth < 40 {
+		return m.renderHeaderCompact()
+	}
+
+	infoBox := panelStyle.Width(actualInfoWidth).Render(infoContent)
 
 	return lipgloss.JoinHorizontal(lipgloss.Top, logoBox, infoBox)
 }
