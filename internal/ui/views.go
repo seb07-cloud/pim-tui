@@ -1074,10 +1074,11 @@ func (m Model) renderLogs() string {
 		// Calculate available width for message
 		msgWidth := max(width-15, 20)
 
-		// Truncate message before styling to avoid cutting ANSI codes
+		// Use ANSI-aware truncation - lipgloss.Width() counts visible chars,
+		// ansi.Truncate() preserves/closes ANSI escape sequences
 		msg := entry.Message
-		if len(msg) > msgWidth {
-			msg = msg[:msgWidth-3] + "..."
+		if lipgloss.Width(msg) > msgWidth {
+			msg = ansi.Truncate(msg, msgWidth, "...")
 		}
 
 		line := fmt.Sprintf("%s %s %s", levelIcon, timeStr, msgStyle.Render(msg))
