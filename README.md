@@ -27,10 +27,6 @@ Activate Entra ID roles, PIM groups, and Azure RBAC roles across Lighthouse tena
 ![Activation Confirmation](media/activation.png)
 *Batch activation with Tier 0 warning and duration selection*
 
-### Processing
-![Processing Activation](media/process_activation.png)
-*Real-time progress during role activation*
-
 ### Tree View
 ![Role Flow](media/flow.png)
 *Visual hierarchy showing active roles and their relationship to the tenant*
