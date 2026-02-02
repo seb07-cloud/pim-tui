@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 jobs:
-  build:
+  build-linux-windows:
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -21,12 +21,6 @@ jobs:
             goarch: amd64
             ext: ''
           - goos: linux
-            goarch: arm64
-            ext: ''
-          - goos: darwin
-            goarch: amd64
-            ext: ''
-          - goos: darwin
             goarch: arm64
             ext: ''
     steps:
@@ -51,8 +45,37 @@ jobs:
           name: pim-tui-${{ matrix.goos }}-${{ matrix.goarch }}
           path: pim-tui-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}
 
+  build-darwin:
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        include:
+          - goarch: amd64
+          - goarch: arm64
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+
+      - name: Build
+        env:
+          GOOS: darwin
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: '1'
+        run: |
+          go build -ldflags="-s -w" -o pim-tui-darwin-${{ matrix.goarch }} ./cmd/pim-tui
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pim-tui-darwin-${{ matrix.goarch }}
+          path: pim-tui-darwin-${{ matrix.goarch }}
+
   release:
-    needs: build
+    needs: [build-linux-windows, build-darwin]
     runs-on: ubuntu-latest
     steps:
       - name: Download all artifacts

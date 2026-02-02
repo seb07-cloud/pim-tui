@@ -1,8 +1,12 @@
 package ui
 
 import (
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/charmbracelet/lipgloss"
+	"github.com/seb07-cloud/pim-tui/internal/config"
 )
 
 func TestFormatDuration(t *testing.T) {
@@ -217,6 +221,69 @@ func TestTruncate(t *testing.T) {
 			if got != tt.expected {
 				t.Errorf("truncate(%q, %d) = %q, want %q",
 					tt.input, tt.max, got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestViewHeightConstraint(t *testing.T) {
+	// Test that View() respects terminal height constraint
+	// This prevents terminal overflow that causes header truncation
+	tests := []struct {
+		name   string
+		width  int
+		height int
+	}{
+		{
+			name:   "small terminal",
+			width:  80,
+			height: 24,
+		},
+		{
+			name:   "medium terminal",
+			width:  120,
+			height: 40,
+		},
+		{
+			name:   "large terminal",
+			width:  160,
+			height: 60,
+		},
+		{
+			name:   "very small terminal",
+			width:  50,
+			height: 15,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create a minimal model with terminal dimensions
+			cfg := config.Default()
+			m := NewModel(cfg, "test")
+			m.width = tt.width
+			m.height = tt.height
+			m.state = StateNormal
+
+			// Render the view
+			view := m.View()
+
+			// Count actual rendered lines
+			lines := strings.Split(view, "\n")
+			actualHeight := len(lines)
+
+			// The rendered view should not exceed terminal height
+			// Allow for terminal's natural line handling (may be height or height+1)
+			if actualHeight > tt.height+1 {
+				t.Errorf("View() height = %d, exceeds terminal height %d (lines overflow by %d)",
+					actualHeight, tt.height, actualHeight-tt.height)
+			}
+
+			// Verify lipgloss rendered height matches terminal height
+			renderedHeight := lipgloss.Height(view)
+			if renderedHeight > tt.height+1 {
+				t.Errorf("lipgloss.Height(View()) = %d, exceeds terminal height %d",
+					renderedHeight, tt.height)
 			}
 		})
 	}

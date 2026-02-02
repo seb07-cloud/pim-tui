@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/seb07-cloud/pim-tui/internal/azure"
 )
 
@@ -15,6 +16,15 @@ const asciiLogo = ` ██████╗ ██╗███╗   ███╗  
  ██╔═══╝ ██║██║╚██╔╝██║       ██║   ██║   ██║██║
  ██║     ██║██║ ╚═╝ ██║       ██║   ╚██████╔╝██║
  ╚═╝     ╚═╝╚═╝     ╚═╝       ╚═╝    ╚═════╝ ╚═╝`
+
+// Responsive breakpoints for layout tiers
+const (
+	BreakpointXS = 60  // Tier 1: Minimal - single panel, essential info only
+	BreakpointSM = 80  // Tier 2: Compact - single panel with details
+	BreakpointMD = 100 // Tier 3: Normal - two panels side by side
+	BreakpointLG = 130 // Tier 4: Full - two panels with logo/decorations (increased for Unicode width)
+	BreakpointXL = 160 // Tier 5: Luxury - all features, extra spacing
+)
 
 func (m Model) View() string {
 	if m.width == 0 {
@@ -70,9 +80,12 @@ func (m Model) View() string {
 	// Status bar
 	sections = append(sections, m.renderStatusBar())
 
-	// Join all sections and ensure output fills terminal to prevent ghost lines
+	// Join all sections vertically
 	content := lipgloss.JoinVertical(lipgloss.Left, sections...)
-	return lipgloss.NewStyle().Width(m.width).Height(m.height).Render(content)
+	// Constrain width and use MaxHeight to prevent terminal overflow
+	// When content exceeds terminal height, the terminal scrolls and cuts the top
+	// MaxHeight will truncate content that exceeds the terminal height
+	return lipgloss.NewStyle().Width(m.width).MaxHeight(m.height).Render(content)
 }
 
 func (m Model) renderLoading() string {
@@ -230,27 +243,103 @@ func (m Model) renderUnauthenticated() string {
 }
 
 func (m Model) renderHeader() string {
-	// The ASCII logo needs ~55 chars width (49 chars + border/padding)
-	// Only show logo if we have at least 110 chars total width
-	minWidthForLogo := 110
-	showLogo := m.width >= minWidthForLogo
-
-	var logoBoxWidth, infoBoxWidth int
-	if showLogo {
-		// Two panels side by side: each has border (2) + padding (2) = 4 chars
-		totalWidth := m.width - 8
-		// Use same width as list panel in main view (45%)
-		logoBoxWidth = totalWidth * 9 / 20
-		infoBoxWidth = totalWidth - logoBoxWidth
-	} else {
-		// Single panel: border (2) + padding (2) = 4 chars
-		infoBoxWidth = m.width - 4
+	// Absolute minimum - can't render anything useful
+	if m.width < 40 {
+		return dimStyle.Render(fmt.Sprintf("v%s", m.version))
 	}
 
-	// Right box: Info - use shared styles
+	tier := m.getLayoutTier()
+
+	switch tier {
+	case 4: // LG: Full layout with logo (width >= 120)
+		return m.renderHeaderFull()
+	case 3: // MD: Single panel, all info (width 80-119)
+		return m.renderHeaderCompact()
+	case 2: // SM: Single line essential (width 60-79)
+		return m.renderHeaderMinimal()
+	default: // XS: Version only (width < 60)
+		return m.renderHeaderTiny()
+	}
+}
+
+// renderHeaderTiny renders the header for Tier 1 (XS, width < 60)
+// Just version and maybe tenant name
+func (m Model) renderHeaderTiny() string {
+	if m.tenant != nil {
+		return dimStyle.Render(fmt.Sprintf("v%s │ %s", m.version, truncate(m.tenant.DisplayName, 30)))
+	}
+	return dimStyle.Render(fmt.Sprintf("v%s", m.version))
+}
+
+// renderHeaderMinimal renders the header for Tier 2 (SM, width 60-79)
+// Single line with tenant, user, version
+func (m Model) renderHeaderMinimal() string {
+	var parts []string
+	if m.tenant != nil {
+		parts = append(parts, activeBoldStyle.Render(truncate(m.tenant.DisplayName, 25)))
+	}
+	parts = append(parts, dimStyle.Render(fmt.Sprintf("v%s", m.version)))
+
+	// Add active count if any
+	activeRoles, activeGroups := m.countActiveItems()
+	if activeRoles+activeGroups > 0 {
+		parts = append(parts, activeStyle.Render(fmt.Sprintf("● %d active", activeRoles+activeGroups)))
+	}
+
+	return strings.Join(parts, " │ ")
+}
+
+// renderHeaderCompact renders the header for Tier 3 (MD, width 80-119)
+// Single panel with all info, no logo
+func (m Model) renderHeaderCompact() string {
+	// Use frame-aware width calculation
+	frameSize := panelStyle.GetHorizontalFrameSize()
+	contentWidth := m.width - 4 - frameSize // 4 for outer margin
+	if contentWidth < 30 {
+		contentWidth = 30
+	}
+
 	var infoLines []string
 
-	// Tenant Name and ID
+	if m.tenant != nil {
+		infoLines = append(infoLines, dimStyle.Render("Tenant: ")+activeBoldStyle.Render(m.tenant.DisplayName))
+		infoLines = append(infoLines, dimStyle.Render("User:   ")+detailValueStyle.Render(m.userEmail))
+	} else {
+		infoLines = append(infoLines, dimStyle.Render("Tenant: ")+detailValueStyle.Render("Connecting..."))
+	}
+
+	// Quick stats
+	activeRoles, activeGroups := m.countActiveItems()
+	if activeRoles+activeGroups > 0 {
+		activeBadge := lipgloss.NewStyle().
+			Background(colorActive).
+			Foreground(lipgloss.Color("#000000")).
+			Bold(true).
+			Padding(0, 1).
+			Render(fmt.Sprintf("● %d ACTIVE", activeRoles+activeGroups))
+		infoLines = append(infoLines, activeBadge)
+	}
+
+	// Counts line
+	badgeStyle := lipgloss.NewStyle().
+		Background(colorBorder).
+		Foreground(lipgloss.Color("#ffffff")).
+		Padding(0, 1)
+	countLine := badgeStyle.Render(fmt.Sprintf("🔐 %d", len(m.roles))) + " " +
+		badgeStyle.Render(fmt.Sprintf("👥 %d", len(m.groups))) + " " +
+		dimStyle.Render(fmt.Sprintf("v%s", m.version))
+	infoLines = append(infoLines, countLine)
+
+	infoContent := strings.Join(infoLines, "\n")
+	return panelStyle.Width(m.width - 4).Render(infoContent)
+}
+
+// renderHeaderFull renders the header for Tier 4 (LG, width >= 130)
+// Two panels with logo - full implementation
+func (m Model) renderHeaderFull() string {
+	// Build info lines
+	var infoLines []string
+
 	if m.tenant != nil {
 		infoLines = append(infoLines, dimStyle.Render("Tenant: ")+activeBoldStyle.Render(m.tenant.DisplayName))
 		infoLines = append(infoLines, dimStyle.Render("User:   ")+detailValueStyle.Render(m.userEmail))
@@ -262,11 +351,8 @@ func (m Model) renderHeader() string {
 	// Quick stats badges
 	activeRoles, activeGroups := m.countActiveItems()
 	expiringCount := m.countExpiringItems()
-
-	// Build badge line
 	var badges []string
 
-	// Active badge
 	if activeRoles+activeGroups > 0 {
 		activeBadge := lipgloss.NewStyle().
 			Background(colorActive).
@@ -277,7 +363,6 @@ func (m Model) renderHeader() string {
 		badges = append(badges, activeBadge)
 	}
 
-	// Expiring badge
 	if expiringCount > 0 {
 		expiringBadge := lipgloss.NewStyle().
 			Background(colorExpiring).
@@ -292,7 +377,7 @@ func (m Model) renderHeader() string {
 		infoLines = append(infoLines, strings.Join(badges, " "))
 	}
 
-	// Roles, Groups, and Subscriptions counts
+	// Resource counts
 	badgeStyle := lipgloss.NewStyle().
 		Background(colorBorder).
 		Foreground(lipgloss.Color("#ffffff")).
@@ -300,7 +385,6 @@ func (m Model) renderHeader() string {
 	rolesBadge := badgeStyle.Render(fmt.Sprintf("🔐 %d Roles", len(m.roles)))
 	groupsBadge := badgeStyle.Render(fmt.Sprintf("👥 %d Groups", len(m.groups)))
 
-	// Count subscriptions with eligible roles
 	subsWithRoles := 0
 	for _, sub := range m.lighthouse {
 		if len(sub.EligibleRoles) > 0 {
@@ -308,11 +392,9 @@ func (m Model) renderHeader() string {
 		}
 	}
 	subsBadge := badgeStyle.Render(fmt.Sprintf("☁ %d Subs", subsWithRoles))
-
-	// Extra spaces compensate for emoji width calculation differences
 	infoLines = append(infoLines, rolesBadge+" "+groupsBadge+" "+subsBadge+"   ")
 
-	// Add search indicator if active
+	// Search indicator
 	if m.searchActive {
 		infoLines = append(infoLines, detailLabelStyle.Render(fmt.Sprintf("🔍 \"%s\"", m.searchQuery)))
 	}
@@ -338,65 +420,74 @@ func (m Model) renderHeader() string {
 	infoLines = append(infoLines, refreshStr)
 	infoLines = append(infoLines, dimStyle.Render(fmt.Sprintf("v%s", m.version)))
 
-	infoContent := strings.Join(infoLines, "\n")
-
-	if showLogo {
-		// Logo has 6 lines - pad info content to match for consistent box heights
-		targetLines := 6
-		for len(infoLines) < targetLines {
-			infoLines = append(infoLines, "")
-		}
-		infoContent = strings.Join(infoLines, "\n")
-
-		infoBox := panelStyle.
-			Width(infoBoxWidth).
-			Render(infoContent)
-
-		logoBox := panelStyle.
-			Width(logoBoxWidth).
-			Align(lipgloss.Center, lipgloss.Center).
-			Render(highlightBoldStyle.Render(asciiLogo))
-		return lipgloss.JoinHorizontal(lipgloss.Top, logoBox, infoBox)
+	// Pad to match logo height (6 lines)
+	for len(infoLines) < 6 {
+		infoLines = append(infoLines, "")
 	}
 
-	infoBox := panelStyle.
-		Width(infoBoxWidth).
-		Render(infoContent)
+	infoContent := strings.Join(infoLines, "\n")
 
-	return infoBox
+	// Render logo without width constraint - let it auto-size to content
+	// This avoids truncation issues with Unicode block characters
+	logoContent := highlightBoldStyle.Render(asciiLogo)
+	logoBox := panelStyle.Render(logoContent)
+
+	// Calculate actual logo box width and adjust info box accordingly
+	actualLogoWidth := lipgloss.Width(logoBox)
+	actualInfoWidth := m.width - 8 - actualLogoWidth
+
+	// If not enough space for info, fall back to compact
+	if actualInfoWidth < 40 {
+		return m.renderHeaderCompact()
+	}
+
+	infoBox := panelStyle.Width(actualInfoWidth).Render(infoContent)
+
+	return lipgloss.JoinHorizontal(lipgloss.Top, logoBox, infoBox)
 }
 
 func (m Model) renderMainView() string {
+	tier := m.getLayoutTier()
+
+	// For tiers 1-2, render single-panel view
+	if tier <= 2 {
+		return m.renderMainViewCompact()
+	}
+
+	// For tiers 3+, render two-panel view
+	return m.renderMainViewFull()
+}
+
+func (m Model) renderMainViewCompact() string {
+	// Single panel layout for narrow terminals
+	// Shows either list OR detail based on state/selection
 	tabBar := m.renderTabBar()
 
-	// Panel dimensions
-	totalWidth := m.width - 8
-	listPanelWidth := totalWidth * 9 / 20
-	detailPanelWidth := totalWidth - listPanelWidth
-	panelHeight := m.height - 25
+	panelWidth := m.width - 4
+	panelHeight := m.getMainPanelHeight()
 
-	// Select content based on active tab with enhanced icons
-	var title, listContent, detailContent string
+	// Select content based on active tab
+	// List height = panel content area (panelHeight - 2 for borders) - 1 for title
+	listHeight := panelHeight - 3
+	if listHeight < 1 {
+		listHeight = 1
+	}
+	var title, content string
 	switch m.activeTab {
 	case TabRoles:
 		title = "🔐 PIM Roles"
-		listContent = m.renderRolesList(panelHeight - 2)
-		detailContent = m.renderRoleDetail()
+		content = m.renderRolesList(listHeight)
 	case TabGroups:
 		title = "👥 PIM Groups"
-		listContent = m.renderGroupsList(panelHeight - 2)
-		detailContent = m.renderGroupDetail()
+		content = m.renderGroupsList(listHeight)
 	case TabSubscriptions:
 		title = "📑 Subscriptions"
-		// Show inline search filter if active
 		if m.searchActive && m.searchQuery != "" {
-			title = fmt.Sprintf("📑 Subscriptions [🔍 %s]", m.searchQuery)
+			title = fmt.Sprintf("📑 Subs [🔍 %s]", m.searchQuery)
 		}
-		listContent = m.renderSubscriptionsList(max(panelHeight-2, 1))
-		detailContent = m.renderSubscriptionDetail()
+		content = m.renderSubscriptionsList(listHeight)
 	}
 
-	// Prominent panel title with background
 	prominentTitle := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(lipgloss.Color("#ffffff")).
@@ -404,10 +495,63 @@ func (m Model) renderMainView() string {
 		Padding(0, 2).
 		Render(title)
 
-	listPanel := activePanelStyle.Width(listPanelWidth).Height(panelHeight).Render(
+	panel := activePanelStyle.Width(panelWidth).Height(panelHeight).Render(
+		prominentTitle + "\n" + content,
+	)
+
+	return lipgloss.JoinVertical(lipgloss.Left, tabBar, panel)
+}
+
+func (m Model) renderMainViewFull() string {
+	// Two-panel layout for wider terminals
+	tabBar := m.renderTabBar()
+
+	// Use frame-aware width helpers
+	listWidth := m.listPanelWidth()
+	detailWidth := m.detailPanelWidth()
+	panelHeight := m.getMainPanelHeight()
+
+	// Safety check - if widths are invalid, fall back to compact
+	if listWidth <= 0 || detailWidth <= 0 {
+		return m.renderMainViewCompact()
+	}
+
+	// Select content based on active tab
+	// List height = panel content area (panelHeight - 2 for borders) - 1 for title
+	listHeight := panelHeight - 3
+	if listHeight < 1 {
+		listHeight = 1
+	}
+	var title, listContent, detailContent string
+	switch m.activeTab {
+	case TabRoles:
+		title = "🔐 PIM Roles"
+		listContent = m.renderRolesList(listHeight)
+		detailContent = m.renderRoleDetail()
+	case TabGroups:
+		title = "👥 PIM Groups"
+		listContent = m.renderGroupsList(listHeight)
+		detailContent = m.renderGroupDetail()
+	case TabSubscriptions:
+		title = "📑 Subscriptions"
+		if m.searchActive && m.searchQuery != "" {
+			title = fmt.Sprintf("📑 Subscriptions [🔍 %s]", m.searchQuery)
+		}
+		listContent = m.renderSubscriptionsList(listHeight)
+		detailContent = m.renderSubscriptionDetail()
+	}
+
+	prominentTitle := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("#ffffff")).
+		Background(colorHighlight).
+		Padding(0, 2).
+		Render(title)
+
+	listPanel := activePanelStyle.Width(listWidth).Height(panelHeight).Render(
 		prominentTitle + "\n" + listContent,
 	)
-	detailPanel := panelStyle.Width(detailPanelWidth).Height(panelHeight).Render(detailContent)
+	detailPanel := panelStyle.Width(detailWidth).Height(panelHeight).Render(detailContent)
 
 	return lipgloss.JoinVertical(lipgloss.Left, tabBar, lipgloss.JoinHorizontal(lipgloss.Top, listPanel, detailPanel))
 }
@@ -660,8 +804,56 @@ func getRoleTierBadge(roleDefinitionID string) string {
 	return ""
 }
 
+// listPanelWidth returns the width for the list panel, accounting for frame sizes.
+// This is the OUTER width of the panel (including borders/padding).
 func (m Model) listPanelWidth() int {
-	return (m.width - 8) * 9 / 20
+	tier := m.getLayoutTier()
+
+	// For small screens (tier 1-2), use full width
+	if tier <= 2 {
+		return m.width - 4 // Just outer margins
+	}
+
+	// For tier 3+, use 45% of available width for list panel
+	// Available = total - outer margins (4) - gap between panels (4)
+	available := m.width - 8
+	listWidth := available * 9 / 20 // ~45%
+
+	// Ensure minimum usable width (30 for content + frame)
+	minWidth := 30 + activePanelStyle.GetHorizontalFrameSize()
+	if listWidth < minWidth {
+		listWidth = minWidth
+	}
+
+	return listWidth
+}
+
+// listPanelContentWidth returns the width available for content inside the list panel.
+// This accounts for the panel's border and padding.
+func (m Model) listPanelContentWidth() int {
+	panelWidth := m.listPanelWidth()
+	frameSize := activePanelStyle.GetHorizontalFrameSize()
+	contentWidth := panelWidth - frameSize
+
+	// Ensure minimum content width
+	if contentWidth < 20 {
+		contentWidth = 20
+	}
+	return contentWidth
+}
+
+// detailPanelWidth returns the width for the detail panel.
+func (m Model) detailPanelWidth() int {
+	tier := m.getLayoutTier()
+
+	// For small screens (tier 1-2), use full width
+	if tier <= 2 {
+		return m.width - 4
+	}
+
+	// For tier 3+, detail panel gets remaining width after list panel
+	available := m.width - 8
+	return available - m.listPanelWidth()
 }
 
 func renderCheckbox(selected bool) string {
@@ -673,10 +865,13 @@ func renderCheckbox(selected bool) string {
 
 func (m Model) renderListItem(idx int, name string, status azure.ActivationStatus, selected, isCursor bool) string {
 	// Format: "[x] ● Name" - Prefix: checkbox(3) + space(1) + icon(1) + space(1) = 6
-	nameWidth := max(m.listPanelWidth()-6, 10)
+	// Use content width (panel width minus frame) for accurate calculation
+	nameWidth := max(m.listPanelContentWidth()-6, 10)
 
-	if len(name) > nameWidth {
-		name = name[:nameWidth-3] + "..."
+	// Use ANSI-aware width check and truncation to handle styled text (like tier badges)
+	// Note: ansi.Truncate includes the tail ("...") in the total width
+	if lipgloss.Width(name) > nameWidth {
+		name = ansi.Truncate(name, nameWidth, "...")
 	}
 
 	// Apply search highlighting if search is active
@@ -988,7 +1183,13 @@ func (m Model) renderSubscriptionDetail() string {
 }
 
 func (m Model) renderLogs() string {
-	logHeight := 8
+	// Use smaller log panel when logo isn't shown (tiers 1-3)
+	// This gives more space to main content on narrow terminals
+	// logHeight includes: header (1) + separator (1) + message lines
+	logHeight := 8 // Tier 4: 6 log messages
+	if m.getLayoutTier() < 4 {
+		logHeight = 5 // Tiers 1-3: 3 log messages
+	}
 	// Match the width of two side-by-side panels in header/main view
 	width := m.width - 6
 
@@ -1046,10 +1247,11 @@ func (m Model) renderLogs() string {
 		// Calculate available width for message
 		msgWidth := max(width-15, 20)
 
-		// Truncate message before styling to avoid cutting ANSI codes
+		// Use ANSI-aware truncation - lipgloss.Width() counts visible chars,
+		// ansi.Truncate() preserves/closes ANSI escape sequences
 		msg := entry.Message
-		if len(msg) > msgWidth {
-			msg = msg[:msgWidth-3] + "..."
+		if lipgloss.Width(msg) > msgWidth {
+			msg = ansi.Truncate(msg, msgWidth, "...")
 		}
 
 		line := fmt.Sprintf("%s %s %s", levelIcon, timeStr, msgStyle.Render(msg))
@@ -1586,7 +1788,8 @@ func (m Model) renderItemListWithExpiry(height int, itemType string, count int, 
 // renderListItemWithExpiry renders a list item with optional compact expiry time
 func (m Model) renderListItemWithExpiry(idx int, name string, status azure.ActivationStatus, selected, isCursor bool, expiresAt *time.Time) string {
 	// Calculate available width for name (accounting for expiry suffix)
-	baseWidth := m.listPanelWidth() - 6 // checkbox + status icon
+	// Use content width to account for panel's border/padding
+	baseWidth := m.listPanelContentWidth() - 6 // checkbox + status icon
 	expiryWidth := 0
 	var expirySuffix string
 
@@ -1600,8 +1803,12 @@ func (m Model) renderListItemWithExpiry(idx int, name string, status azure.Activ
 	}
 
 	nameWidth := max(baseWidth-expiryWidth, 10)
-	if len(name) > nameWidth {
-		name = name[:nameWidth-3] + "..."
+	// Use ANSI-aware width check and truncation to handle styled text (like tier badges)
+	// lipgloss.Width() returns visible character count, ignoring ANSI escape sequences
+	if lipgloss.Width(name) > nameWidth {
+		// ansi.Truncate properly handles ANSI escape sequences, preserving and closing them
+		// Note: ansi.Truncate includes the tail ("...") in the total width
+		name = ansi.Truncate(name, nameWidth, "...")
 	}
 
 	// Apply search highlighting if search is active
@@ -1735,10 +1942,12 @@ func (m Model) refreshCountdown() (remaining int, hasCountdown bool) {
 }
 
 func truncate(s string, max int) string {
-	if len(s) <= max {
+	// Use ANSI-aware width check and truncation to handle styled text
+	if lipgloss.Width(s) <= max {
 		return s
 	}
-	return s[:max-3] + "..."
+	// ansi.Truncate includes the tail in the total width
+	return ansi.Truncate(s, max, "...")
 }
 
 func (m Model) dialogWidth() int {
@@ -1747,6 +1956,51 @@ func (m Model) dialogWidth() int {
 
 func (m Model) dialogHeight() int {
 	return m.height - 6
+}
+
+// getLayoutTier returns the current layout tier based on terminal width.
+// Tier 1 (XS): < 60 - minimal, single column
+// Tier 2 (SM): 60-79 - compact, single panel
+// Tier 3 (MD): 80-99 - normal, two panels
+// Tier 4 (LG): 100+ - full features (includes XL at 160+)
+func (m Model) getLayoutTier() int {
+	switch {
+	case m.width >= BreakpointLG:
+		return 4
+	case m.width >= BreakpointMD:
+		return 3
+	case m.width >= BreakpointSM:
+		return 2
+	default:
+		return 1
+	}
+}
+
+// getMainPanelHeight returns the fixed height for main content panels based on tier.
+// Fixed heights ensure consistent rendering at each breakpoint.
+// This accounts for: header, tab bar, log panel, status bar.
+// Each tier has different header/log sizes, so panel height varies.
+//
+// Height breakdown (including borders/frames):
+// - Header compact (panelStyle): 4 content + 2 border = 6 lines
+// - Header minimal: 1 line (no border)
+// - Header tiny: 1 line (no border)
+// - Tab bar: tabs(2 with border) + underline = 3 lines
+// - Log panel (logPanelStyle): content + 2 border
+// - Status bar (helpStyle): 2 lines (no border)
+func (m Model) getMainPanelHeight() int {
+	tier := m.getLayoutTier()
+
+	switch tier {
+	case 4: // LG (130+): Header(6) + Tab(3) + Logs(8+2=10) + Status(2) = 21
+		return max(m.height-21, 10)
+	case 3: // MD (80-129): Header(6) + Tab(3) + Logs(5+2=7) + Status(2) = 18
+		return max(m.height-18, 10)
+	case 2: // SM (60-79): Header(1) + Tab(3) + Logs(5+2=7) + Status(2) = 13
+		return max(m.height-13, 8)
+	default: // XS (<60): Header(1) + Tab(3) + Logs(5+2=7) + Status(2) = 13
+		return max(m.height-13, 6)
+	}
 }
 
 func (m Model) durationStr() string {

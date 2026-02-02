@@ -164,11 +164,19 @@ func (c *Client) GetActiveGroups(ctx context.Context) (map[string]*time.Time, er
 
 	active := make(map[string]*time.Time)
 	for _, g := range allAssignments {
+		// Always add active assignments to the map
+		// Parse EndDateTime if present, otherwise use nil (active but unknown expiry)
 		if g.EndDateTime != "" {
 			t, err := time.Parse(time.RFC3339, g.EndDateTime)
 			if err == nil {
 				active[g.ResourceID] = &t
+			} else {
+				// Parse failed but assignment is active - mark as active with no expiry
+				active[g.ResourceID] = nil
 			}
+		} else {
+			// No EndDateTime but assignment is active (e.g., permanent or pending)
+			active[g.ResourceID] = nil
 		}
 	}
 
@@ -202,8 +210,14 @@ func (c *Client) GetGroups(ctx context.Context) ([]Group, error) {
 
 	for i := range eligible {
 		if expiry, ok := active[eligible[i].ID]; ok {
+			// Found in active map - mark as active
 			eligible[i].ExpiresAt = expiry
-			eligible[i].Status = StatusFromExpiry(expiry)
+			if expiry != nil {
+				eligible[i].Status = StatusFromExpiry(expiry)
+			} else {
+				// Active but no expiry info - mark as Active
+				eligible[i].Status = StatusActive
+			}
 		}
 	}
 
