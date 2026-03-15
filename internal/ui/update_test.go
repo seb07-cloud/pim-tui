@@ -134,9 +134,17 @@ func TestUpdateKeyHandling(t *testing.T) {
 			wantTab: TabSubscriptions,
 		},
 		{
-			name: "tab key cycles from subscriptions to roles",
+			name: "tab key cycles from subscriptions to profiles",
 			setup: func(m *Model) {
 				m.activeTab = TabSubscriptions
+			},
+			key:     tea.KeyMsg{Type: tea.KeyTab},
+			wantTab: TabProfiles,
+		},
+		{
+			name: "tab key cycles from profiles to roles",
+			setup: func(m *Model) {
+				m.activeTab = TabProfiles
 			},
 			key:     tea.KeyMsg{Type: tea.KeyTab},
 			wantTab: TabRoles,
@@ -166,12 +174,20 @@ func TestUpdateKeyHandling(t *testing.T) {
 			wantTab: TabRoles,
 		},
 		{
-			name: "right arrow at subscriptions stays at subscriptions",
+			name: "right arrow at subscriptions moves to profiles",
 			setup: func(m *Model) {
 				m.activeTab = TabSubscriptions
 			},
 			key:     tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'l'}},
-			wantTab: TabSubscriptions,
+			wantTab: TabProfiles,
+		},
+		{
+			name: "right arrow at profiles stays at profiles",
+			setup: func(m *Model) {
+				m.activeTab = TabProfiles
+			},
+			key:     tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'l'}},
+			wantTab: TabProfiles,
 		},
 	}
 
@@ -856,5 +872,131 @@ func TestUpdateLogLevelCycle(t *testing.T) {
 
 	if got.logLevel != LogDebug {
 		t.Errorf("logLevel = %v, want LogDebug", got.logLevel)
+	}
+}
+
+// TestUpdateProfileShortcut tests 'p' key navigates to profiles tab
+func TestUpdateProfileShortcut(t *testing.T) {
+	t.Run("p key switches to profiles tab when profiles exist", func(t *testing.T) {
+		m := testModel(StateNormal)
+		m.profiles = []config.Profile{{Name: "Test"}}
+
+		newModel, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'p'}})
+		got := newModel.(Model)
+
+		if got.activeTab != TabProfiles {
+			t.Errorf("activeTab = %v, want TabProfiles", got.activeTab)
+		}
+	})
+
+	t.Run("p key does nothing when no profiles", func(t *testing.T) {
+		m := testModel(StateNormal)
+		m.activeTab = TabRoles
+
+		newModel, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'p'}})
+		got := newModel.(Model)
+
+		if got.activeTab != TabRoles {
+			t.Errorf("activeTab = %v, want TabRoles", got.activeTab)
+		}
+	})
+}
+
+// TestUpdateProfileActivationFlow tests profile activation state transitions
+func TestUpdateProfileActivationFlow(t *testing.T) {
+	t.Run("enter on profiles tab with valid profile goes to vars", func(t *testing.T) {
+		m := testModel(StateNormal)
+		m.activeTab = TabProfiles
+		m.roles = []azure.Role{{DisplayName: "Global Reader", RoleDefinitionID: "def-1"}}
+		m.profiles = []config.Profile{{
+			Name:          "Test",
+			Justification: "Reason: {{ticket}}",
+			Entries:       []config.ProfileEntry{{Type: "role", Name: "Global Reader"}},
+		}}
+		m.profilesCursor = 0
+
+		newModel, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+		got := newModel.(*Model)
+
+		if got.state != StateProfileVars {
+			t.Errorf("state = %v, want StateProfileVars", got.state)
+		}
+	})
+
+	t.Run("enter on profiles tab with no vars goes to confirm", func(t *testing.T) {
+		m := testModel(StateNormal)
+		m.activeTab = TabProfiles
+		m.roles = []azure.Role{{DisplayName: "Global Reader", RoleDefinitionID: "def-1"}}
+		m.profiles = []config.Profile{{
+			Name:          "Test",
+			Justification: "Static reason",
+			Entries:       []config.ProfileEntry{{Type: "role", Name: "Global Reader"}},
+		}}
+		m.profilesCursor = 0
+
+		newModel, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+		got := newModel.(*Model)
+
+		if got.state != StateProfileConfirm {
+			t.Errorf("state = %v, want StateProfileConfirm", got.state)
+		}
+	})
+
+	t.Run("esc in profile vars returns to normal", func(t *testing.T) {
+		m := testModel(StateProfileVars)
+		rp := ResolvedProfile{
+			Variables: []string{"ticket"},
+		}
+		m.selectedProfile = &rp
+
+		newModel, _ := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+		got := newModel.(Model)
+
+		if got.state != StateNormal {
+			t.Errorf("state = %v, want StateNormal", got.state)
+		}
+	})
+
+	t.Run("esc in profile confirm returns to normal", func(t *testing.T) {
+		m := testModel(StateProfileConfirm)
+		rp := ResolvedProfile{AllValid: true}
+		m.selectedProfile = &rp
+
+		newModel, _ := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+		got := newModel.(Model)
+
+		if got.state != StateNormal {
+			t.Errorf("state = %v, want StateNormal", got.state)
+		}
+	})
+
+	t.Run("y in profile confirm with invalid entries is blocked", func(t *testing.T) {
+		m := testModel(StateProfileConfirm)
+		rp := ResolvedProfile{AllValid: false}
+		m.selectedProfile = &rp
+
+		newModel, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'y'}})
+		got := newModel.(Model)
+
+		if got.state != StateProfileConfirm {
+			t.Errorf("state = %v, want StateProfileConfirm (blocked)", got.state)
+		}
+	})
+}
+
+// TestUpdateProfilesLoadedMsg tests profile loading message handling
+func TestUpdateProfilesLoadedMsg(t *testing.T) {
+	m := testModel(StateNormal)
+
+	newModel, _ := m.Update(profilesLoadedMsg{
+		profiles: []config.Profile{
+			{Name: "Profile 1"},
+			{Name: "Profile 2"},
+		},
+	})
+	got := newModel.(Model)
+
+	if len(got.profiles) != 2 {
+		t.Errorf("profiles count = %d, want 2", len(got.profiles))
 	}
 }

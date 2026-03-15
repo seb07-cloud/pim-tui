@@ -32,6 +32,7 @@ const (
 	TabRoles Tab = iota
 	TabGroups
 	TabSubscriptions
+	TabProfiles
 )
 
 type LogLevel int
@@ -91,6 +92,8 @@ const (
 	StateUnauthenticated  // User needs to authenticate (not an error, a prompt)
 	StateAuthenticating   // Device code auth in progress
 	StateTreeView         // Tree visualization for role inheritance
+	StateProfileVars      // Prompting user for template variable values
+	StateProfileConfirm   // Showing resolved profile for confirmation
 )
 
 type Model struct {
@@ -173,6 +176,15 @@ type Model struct {
 	// Tree view
 	treeView TreeViewModel
 
+	// Profiles
+	profiles             []config.Profile
+	profilesCursor       int
+	profilesScrollOffset int
+	selectedProfile      *ResolvedProfile
+	profileVarInputs     []textinput.Model
+	profileVarIndex      int
+	profileVarValues     map[string]string
+
 	// Error
 	err error
 }
@@ -194,6 +206,10 @@ type lighthouseLoadedMsg struct {
 }
 type activationDoneMsg struct{ err error }
 type deactivationDoneMsg struct{ err error }
+type profilesLoadedMsg struct {
+	profiles []config.Profile
+	err      error
+}
 type delayedRefreshMsg struct{} // Triggers a refresh after a delay
 type tickMsg time.Time
 type errMsg struct {
@@ -268,7 +284,15 @@ func (m Model) Init() tea.Cmd {
 	return tea.Batch(
 		initClientCmd(),
 		tickCmd(),
+		loadProfilesCmd(),
 	)
+}
+
+func loadProfilesCmd() tea.Cmd {
+	return func() tea.Msg {
+		pc, err := config.LoadProfiles()
+		return profilesLoadedMsg{profiles: pc.Profiles, err: err}
+	}
 }
 
 func initClientCmd() tea.Cmd {
@@ -542,6 +566,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.checkLoadingComplete()
 		return m, nil
 
+	case profilesLoadedMsg:
+		if msg.err != nil {
+			m.log(LogError, "Failed to load profiles: %v", msg.err)
+		} else if len(msg.profiles) > 0 {
+			m.profiles = msg.profiles
+			m.log(LogInfo, "Loaded %d activation profile(s)", len(msg.profiles))
+		}
+		return m, nil
+
 	case activationDoneMsg:
 		m.state = StateNormal
 		if msg.err != nil {
@@ -723,7 +756,7 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case StateHelp:
 		// Help has ~45 lines, max visible depends on panel height
 		// panelHeight = m.height - 27 (shorter than main panels to keep header visible)
-		maxHelpLines := 45
+		maxHelpLines := 46
 		panelHeight := m.height - 27
 		maxVisibleLines := panelHeight - 7
 		if maxVisibleLines < 5 {
@@ -858,6 +891,51 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		var cmd tea.Cmd
 		m.treeView, cmd = m.treeView.Update(msg)
 		return m, cmd
+
+	case StateProfileVars:
+		switch msg.String() {
+		case "enter":
+			val := m.profileVarInputs[m.profileVarIndex].Value()
+			if val == "" {
+				return m, nil
+			}
+			m.profileVarValues[m.selectedProfile.Variables[m.profileVarIndex]] = val
+			if m.profileVarIndex < len(m.selectedProfile.Variables)-1 {
+				m.profileVarInputs[m.profileVarIndex].Blur()
+				m.profileVarIndex++
+				m.profileVarInputs[m.profileVarIndex].Focus()
+				return m, textinput.Blink
+			}
+			// All variables filled — transition to confirm
+			return m.transitionToProfileConfirm()
+		case "esc":
+			m.state = StateNormal
+			m.selectedProfile = nil
+			return m, nil
+		default:
+			var cmd tea.Cmd
+			m.profileVarInputs[m.profileVarIndex], cmd = m.profileVarInputs[m.profileVarIndex].Update(msg)
+			return m, cmd
+		}
+
+	case StateProfileConfirm:
+		switch msg.String() {
+		case "y", "enter":
+			if m.selectedProfile == nil || !m.selectedProfile.AllValid {
+				return m, nil // Blocked
+			}
+			return m.startProfileActivation()
+		case "n", "esc":
+			m.state = StateNormal
+			m.selectedProfile = nil
+			return m, nil
+		case "1", "2", "3", "4":
+			idx := int(msg.String()[0] - '1')
+			m.setDurationByIndex(idx)
+		case "tab":
+			m.cycleDuration()
+		}
+		return m, nil
 	}
 
 	// Normal state key handling
@@ -909,7 +987,7 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 		}
 		// Switch tabs - scroll offsets preserved independently per panel
-		if m.activeTab < TabSubscriptions {
+		if m.activeTab < TabProfiles {
 			m.activeTab++
 			m.subRoleFocus = false
 		}
@@ -926,13 +1004,16 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 		}
 		// Cycle tabs - scroll offsets preserved independently per panel
-		m.activeTab = (m.activeTab + 1) % 3
+		m.activeTab = (m.activeTab + 1) % 4
 		m.subRoleFocus = false
 
 	case " ":
 		m.toggleSelection()
 
 	case "enter":
+		if m.activeTab == TabProfiles {
+			return m.initiateProfileActivation()
+		}
 		return m.initiateActivation()
 
 	case "x", "delete":
@@ -980,6 +1061,12 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case "e", "E":
 		m.exportHistory()
+
+	case "p":
+		if len(m.profiles) > 0 {
+			m.activeTab = TabProfiles
+			m.subRoleFocus = false
+		}
 
 	case "/":
 		m.state = StateSearch
@@ -1182,6 +1269,9 @@ func (m *Model) moveCursor(delta int) {
 		m.groupsCursor = clampCursor(m.groupsCursor, delta, len(m.groups))
 		// Adjust scroll offset to keep cursor visible
 		m.groupsScrollOffset = m.adjustScrollOffset(m.groupsCursor, m.groupsScrollOffset, len(m.groups), displayHeight)
+	case TabProfiles:
+		m.profilesCursor = clampCursor(m.profilesCursor, delta, len(m.profiles))
+		m.profilesScrollOffset = m.adjustScrollOffset(m.profilesCursor, m.profilesScrollOffset, len(m.profiles), displayHeight)
 	}
 }
 
@@ -1437,6 +1527,85 @@ func (m *Model) startDeactivation() (tea.Model, tea.Cmd) {
 		}
 		return deactivationDoneMsg{nil}
 	}
+}
+
+func (m *Model) initiateProfileActivation() (tea.Model, tea.Cmd) {
+	if m.profilesCursor >= len(m.profiles) {
+		return m, nil
+	}
+
+	p := m.profiles[m.profilesCursor]
+	rp := resolveProfile(p, m.roles, m.groups, m.lighthouse)
+	m.selectedProfile = &rp
+
+	// Set duration from profile if specified, otherwise keep current
+	if p.Duration > 0 {
+		m.duration = time.Duration(p.Duration) * time.Hour
+		// Find matching preset index
+		for i, preset := range m.config.DurationPresets {
+			if preset == p.Duration {
+				m.durationIndex = i
+				break
+			}
+		}
+	}
+
+	// If there are template variables, prompt for them
+	if len(rp.Variables) > 0 {
+		m.profileVarInputs = make([]textinput.Model, len(rp.Variables))
+		m.profileVarValues = make(map[string]string)
+		m.profileVarIndex = 0
+		for i, varName := range rp.Variables {
+			ti := textinput.New()
+			ti.Placeholder = varName + "..."
+			ti.CharLimit = 200
+			if i == 0 {
+				ti.Focus()
+			}
+			m.profileVarInputs[i] = ti
+		}
+		m.state = StateProfileVars
+		return m, textinput.Blink
+	}
+
+	// No variables — go straight to confirmation
+	return m.transitionToProfileConfirm()
+}
+
+func (m *Model) transitionToProfileConfirm() (tea.Model, tea.Cmd) {
+	// Build final justification from template + filled variables
+	if m.selectedProfile != nil && len(m.profileVarValues) > 0 {
+		justification := substituteVariables(m.selectedProfile.Profile.Justification, m.profileVarValues)
+		m.justificationInput.SetValue(justification)
+	} else if m.selectedProfile != nil {
+		m.justificationInput.SetValue(m.selectedProfile.Profile.Justification)
+	}
+	m.state = StateProfileConfirm
+	return m, nil
+}
+
+func (m *Model) startProfileActivation() (tea.Model, tea.Cmd) {
+	if m.selectedProfile == nil {
+		return m, nil
+	}
+
+	// Build pendingActivations from resolved entries
+	m.pendingActivations = nil
+	for _, entry := range m.selectedProfile.Entries {
+		if entry.Matched {
+			m.pendingActivations = append(m.pendingActivations, entry.MatchedAs)
+		}
+	}
+
+	if len(m.pendingActivations) == 0 {
+		return m, nil
+	}
+
+	m.log(LogInfo, "Activating profile: %s (%d items)", m.selectedProfile.Profile.Name, len(m.pendingActivations))
+	m.selectedProfile = nil
+
+	// Reuse the existing startActivation which reads justification from justificationInput
+	return m.startActivation()
 }
 
 func (m *Model) setDurationByIndex(idx int) {

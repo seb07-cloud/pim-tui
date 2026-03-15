@@ -70,6 +70,10 @@ func (m Model) View() string {
 		sections = append(sections, m.renderDeactivating())
 	case StateSearch:
 		sections = append(sections, m.renderSearch())
+	case StateProfileVars:
+		sections = append(sections, m.renderProfileVars())
+	case StateProfileConfirm:
+		sections = append(sections, m.renderProfileConfirm())
 	default:
 		sections = append(sections, m.renderMainView())
 	}
@@ -486,6 +490,9 @@ func (m Model) renderMainViewCompact() string {
 			title = fmt.Sprintf("📑 Subs [🔍 %s]", m.searchQuery)
 		}
 		content = m.renderSubscriptionsList(listHeight)
+	case TabProfiles:
+		title = "📋 Profiles"
+		content = m.renderProfilesList(listHeight)
 	}
 
 	prominentTitle := lipgloss.NewStyle().
@@ -539,6 +546,10 @@ func (m Model) renderMainViewFull() string {
 		}
 		listContent = m.renderSubscriptionsList(listHeight)
 		detailContent = m.renderSubscriptionDetail()
+	case TabProfiles:
+		title = "📋 Profiles"
+		listContent = m.renderProfilesList(listHeight)
+		detailContent = m.renderProfileDetail()
 	}
 
 	prominentTitle := lipgloss.NewStyle().
@@ -604,10 +615,13 @@ func (m Model) renderTabBar() string {
 		subsLabel = fmt.Sprintf("📑 Subs (%d) %s", len(m.lighthouse), activeStyle.Render(fmt.Sprintf("●%d", activeSubs)))
 	}
 
+	profilesLabel := fmt.Sprintf("📋 Profiles (%d)", len(m.profiles))
+
 	tabs := lipgloss.JoinHorizontal(lipgloss.Bottom,
 		tabStyle(m.activeTab == TabRoles).Render(rolesLabel), " ",
 		tabStyle(m.activeTab == TabGroups).Render(groupsLabel), " ",
-		tabStyle(m.activeTab == TabSubscriptions).Render(subsLabel),
+		tabStyle(m.activeTab == TabSubscriptions).Render(subsLabel), " ",
+		tabStyle(m.activeTab == TabProfiles).Render(profilesLabel),
 	)
 
 	// Add full-width underline indicator for active tab
@@ -1355,8 +1369,9 @@ func (m Model) renderHelp() string {
 	// Navigation section
 	lines = append(lines, renderSection("Navigation"))
 	lines = append(lines, renderRow("↑/k ↓/j", "Move cursor up/down"))
-	lines = append(lines, renderRow("←/h →/l", "Switch tabs (Roles/Groups/Subs)"))
+	lines = append(lines, renderRow("←/h →/l", "Switch tabs"))
 	lines = append(lines, renderRow("Tab", "Cycle through tabs"))
+	lines = append(lines, renderRow("p", "Go to Profiles tab"))
 	lines = append(lines, renderRow("t", "View role inheritance tree"))
 	lines = append(lines, "")
 
